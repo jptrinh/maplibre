@@ -1,15 +1,57 @@
-# Element component starter
+# MapLibre Map (WeWeb component)
 
-This is an element for [weweb.io](https://www.weweb.io/).
+A [WeWeb](https://www.weweb.io/) custom element that renders a
+[MapLibre GL JS](https://maplibre.org/maplibre-gl-js/docs/) map styled with free,
+keyless [OpenFreeMap](https://openfreemap.org/) tiles, and displays a bindable array of
+points as colored pin markers with clickable popups.
+
+## Features
+
+- **OpenFreeMap styles** — `liberty`, `bright`, `positron`, `dark`, or a custom MapLibre style
+  URL. No API key required.
+- **Bindable points array** — configure points in the editor or bind an external array
+  (API/database) and map fields (latitude, longitude, label, description, color) with the
+  Formula editors.
+- **Markers** — pick a "Marker type":
+  - **Pin** — built-in colored marker (per-point `color` or the default marker color).
+  - **Image** — a custom image: global "Default marker image" and/or per-point "Image URL"
+    (a point's image overrides the default); control width/height and anchor.
+  - **Text pill** — a rounded badge showing the point's label, with style props for the text
+    (color, size, weight) and the pill (background — overridden by a point's `color` — padding,
+    and radius).
+- **Dropzone popup** — clicking a pin opens a popup whose content you build with your own WeWeb
+  elements (dropped into the popup dropzone). MapLibre keeps it anchored to the point on
+  zoom / drag / rotate. Bind the popup content to the `selectedPoint` variable. Clicking the map
+  closes it. Toggle with "Open popup on marker click".
+- **Optional controls** — navigation, geolocate, scroll-to-zoom, attribution (all toggleable).
+- **Internal variables** — `mapCenter`, `mapZoom`, `isMapLoaded`, `selectedPoint`.
+- **Trigger events** — `map:load`, `map:click`, `map:move`, `marker:click`,
+  `marker:mouseenter`, `marker:mouseleave`, `popup:open`, `popup:close`.
+
+## Usage notes
+
+- **Give the element a height.** The map fills its container fluidly; set an explicit height on
+  the element (or its parent) or the map will collapse.
+- **Attribution.** Keep "Show attribution" on to comply with OpenFreeMap / MapLibre terms.
+- **Binding points.** When the `points` array is bound to external data, use the per-field
+  Formula inputs to map each field to your data's structure.
+- **Designing the popup.** Drop WeWeb elements into the popup dropzone, then bind their content
+  to the `selectedPoint` component variable (the clicked point's raw data). In the editor the
+  popup auto-opens on the first point so you can lay it out; in production it opens on click.
+- **Custom marker image.** To replace the default pin, set "Default marker image" to an image
+  URL (applies to all points), or give individual points an "Image URL" (overrides the default
+  for that point). When bound to external data, map the image with the "Image field" formula.
+  Adjust "Marker width/height" and "Image marker anchor" as needed.
 
 ## Installation
 
-To run locally, first install all dependencies with `npm i`
+Install dependencies with `npm i` (installs `maplibre-gl` and `@weweb/cli`).
 
 ## Start
 
-To serve locally, run `npm run serve --port=[PORT]`, and then go to Weweb editor, open developper popup and add your custom element.
+To serve locally, run `npm run serve --port=[PORT]`, then open the WeWeb editor, open the
+developer popup, and add your custom element.
 
 ## Build
 
-Before release, you can check build error by running `npm run build --name=my-element`
+Before release, check for build errors by running `npm run build --name=maplibre-map`.
