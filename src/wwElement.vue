@@ -1,28 +1,868 @@
 <template>
-  <div class="my-element">
-    <p :style="textStyle">I am a custom element !</p>
+  <div class="maplibre-map">
+    <div ref="mapContainer" class="maplibre-map__container"></div>
+    <!--
+      Popup host: MapLibre relocates this node into a Marker so it stays
+      anchored to the selected point on zoom / drag / rotate. v-show toggles
+      visibility without detaching it from Vue's control.
+    -->
+    <div ref="popupAnchorEl" v-show="isPopupVisible" class="maplibre-map__popup">
+      <wwLayout
+        path="popupContent"
+        direction="column"
+        class="maplibre-map__popup-layout"
+      />
+    </div>
   </div>
 </template>
 
 <script>
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from "vue";
+import maplibregl from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
+
 export default {
   props: {
+    uid: { type: String, required: true },
     content: { type: Object, required: true },
+    /* wwEditor:start */
+    wwEditorState: { type: Object, required: true },
+    /* wwEditor:end */
   },
-  computed: {
-    textStyle() {
-      return {
-        color: this.content.textColor,
-      };
-    },
+  emits: ["trigger-event"],
+  setup(props, { emit }) {
+    // True only in the WeWeb editor. Safe in production: wwEditorState is
+    // undefined there, so this is false (no reliance on wwEditor stripping).
+    const isEditing = computed(() => !!props.wwEditorState?.isEditing);
+
+    const mapContainer = ref(null);
+    const popupAnchorEl = ref(null);
+    let map = null;
+    let markersById = new Map(); // point.id -> { marker, point }
+    let popupMarker = null;
+    let resizeObserver = null;
+    let navControl = null;
+    let geoControl = null;
+    let attributionControl = null;
+    const isPopupVisible = ref(false);
+    const selectedPointId = ref(null);
+    const resolvedIconSvg = ref("");
+    const { getIcon } = wwLib.useIcons();
+
+    // ----- Internal variables -----
+    const { value: mapCenter, setValue: setMapCenter } =
+      wwLib.wwVariable.useComponentVariable({
+        uid: props.uid,
+        name: "mapCenter",
+        type: "object",
+        defaultValue: { lng: 0, lat: 0 },
+      });
+    const { value: mapZoom, setValue: setMapZoom } =
+      wwLib.wwVariable.useComponentVariable({
+        uid: props.uid,
+        name: "mapZoom",
+        type: "number",
+        defaultValue: 0,
+      });
+    const { value: isMapLoaded, setValue: setIsMapLoaded } =
+      wwLib.wwVariable.useComponentVariable({
+        uid: props.uid,
+        name: "isMapLoaded",
+        type: "boolean",
+        defaultValue: false,
+      });
+    const { value: selectedPoint, setValue: setSelectedPoint } =
+      wwLib.wwVariable.useComponentVariable({
+        uid: props.uid,
+        name: "selectedPoint",
+        type: "object",
+        defaultValue: null,
+      });
+
+    // ----- Reactive derived state -----
+    const styleUrl = computed(() => {
+      const custom = props.content?.customStyleUrl;
+      if (custom && typeof custom === "string" && custom.trim().length > 0) {
+        return custom.trim();
+      }
+      const style = props.content?.mapStyle ?? "liberty";
+      return `https://tiles.openfreemap.org/styles/${style}`;
+    });
+
+    const center = computed(() => [
+      Number(props.content?.initialLongitude ?? 0),
+      Number(props.content?.initialLatitude ?? 0),
+    ]);
+
+    const zoom = computed(() => Number(props.content?.initialZoom ?? 0));
+
+    const processedPoints = computed(() => {
+      const items = Array.isArray(props.content?.points)
+        ? props.content.points
+        : [];
+      const { resolveMappingFormula } = wwLib.wwFormula.useFormula();
+
+      return items
+        .map((item, index) => {
+          const latitude = Number(
+            resolveMappingFormula(props.content?.pointsLatitudeFormula, item) ??
+              item?.latitude
+          );
+          const longitude = Number(
+            resolveMappingFormula(
+              props.content?.pointsLongitudeFormula,
+              item
+            ) ?? item?.longitude
+          );
+          const label =
+            resolveMappingFormula(props.content?.pointsLabelFormula, item) ??
+            item?.label ??
+            "";
+          const description =
+            resolveMappingFormula(
+              props.content?.pointsDescriptionFormula,
+              item
+            ) ??
+            item?.description ??
+            "";
+          const color =
+            resolveMappingFormula(props.content?.pointsColorFormula, item) ??
+            item?.color ??
+            "";
+          const image =
+            resolveMappingFormula(props.content?.pointsImageFormula, item) ??
+            item?.image ??
+            "";
+
+          return {
+            id: `point-${item?.id ?? item?.uid ?? index}`,
+            latitude,
+            longitude,
+            label,
+            description,
+            color,
+            image,
+            originalItem: item,
+          };
+        })
+        .filter(
+          (p) =>
+            Number.isFinite(p.latitude) &&
+            Number.isFinite(p.longitude) &&
+            p.latitude >= -90 &&
+            p.latitude <= 90 &&
+            p.longitude >= -180 &&
+            p.longitude <= 180
+        );
+    });
+
+    // Coordinates of the currently selected point (or null if none / removed).
+    const selectedCoords = computed(() => {
+      const p = processedPoints.value.find(
+        (pt) => pt.id === selectedPointId.value
+      );
+      return p ? [p.longitude, p.latitude] : null;
+    });
+
+    // Lift the popup above the default marker (~41px tall, anchored at its tip).
+    const popupOffset = computed(() => {
+      const gap = Number(props.content?.popupGap ?? 8);
+      return [0, -(41 + (Number.isFinite(gap) ? gap : 8))];
+    });
+
+    // Shape exposed to trigger events / selectedPoint: the Formula-resolved
+    // fields (what the user configured via the mapping formulas) plus the
+    // untouched original row for anything not covered by the mapping.
+    const pointPayload = (point) => ({
+      latitude: point.latitude,
+      longitude: point.longitude,
+      label: point.label,
+      description: point.description,
+      color: point.color,
+      image: point.image,
+      originalItem: point.originalItem,
+    });
+
+    // ----- Popup management (Path A: popup rendered as an anchored Marker) -----
+    const ensurePopupMarker = () => {
+      if (!map || !popupAnchorEl.value) return null;
+      if (!popupMarker) {
+        popupMarker = new maplibregl.Marker({
+          element: popupAnchorEl.value,
+          anchor: "bottom",
+          offset: popupOffset.value,
+        });
+        popupMarker.setLngLat(selectedCoords.value || center.value);
+        popupMarker.addTo(map);
+      }
+      return popupMarker;
+    };
+
+    const openPopup = (point) => {
+      selectedPointId.value = point.id;
+      setSelectedPoint(pointPayload(point));
+      if (!(props.content?.showPopups ?? true)) return;
+      const marker = ensurePopupMarker();
+      if (!marker) return;
+      if (selectedCoords.value) marker.setLngLat(selectedCoords.value);
+      isPopupVisible.value = true;
+      emit("trigger-event", {
+        name: "popup:open",
+        event: { point: pointPayload(point) },
+      });
+    };
+
+    const closePopup = () => {
+      if (!isPopupVisible.value) return;
+      isPopupVisible.value = false;
+      selectedPointId.value = null;
+      emit("trigger-event", { name: "popup:close", event: {} });
+    };
+
+    // Editor only: force the popup open on the first point so it can be
+    // designed. Pans to the point so the popup is actually in view. No-op in
+    // the published app (isEditing is false there).
+    const applyEditorPopup = () => {
+      if (!map || !isEditing.value) return;
+      if (
+        props.content?.forcePopupInEditor &&
+        (props.content?.showPopups ?? true)
+      ) {
+        const first = processedPoints.value[0];
+        if (!first) return;
+        // Only act (and re-center) when this point isn't already shown, so we
+        // don't snap the map back while the user is panning around.
+        const alreadyShown =
+          isPopupVisible.value && selectedPointId.value === first.id;
+        if (alreadyShown) return;
+        map.jumpTo({ center: [first.longitude, first.latitude] });
+        openPopup(first);
+      } else {
+        closePopup();
+      }
+    };
+
+    const clearMarkers = () => {
+      markersById.forEach(({ marker }) => marker.remove());
+      markersById.clear();
+    };
+
+    // Per-point fields that affect marker appearance/position. Used to skip
+    // rebuilding a marker whose point hasn't actually changed.
+    const pointsEqual = (a, b) =>
+      a.latitude === b.latitude &&
+      a.longitude === b.longitude &&
+      a.label === b.label &&
+      a.description === b.description &&
+      a.color === b.color &&
+      a.image === b.image;
+
+    // Resolve a WeWeb Image value to a usable src. Picker values are relative
+    // paths (e.g. "designs/.../foo.png") that must be prefixed with the CDN;
+    // bound URLs / uploads / data URIs are already absolute and pass through.
+    const resolveImageUrl = (value) => {
+      if (!value || typeof value !== "string") return "";
+      const v = value.trim();
+      if (!v) return "";
+      if (
+        /^(https?:)?\/\//i.test(v) ||
+        v.startsWith("data:") ||
+        v.startsWith("blob:")
+      ) {
+        return v;
+      }
+      const util =
+        wwLib?.wwUtils?.resolveImageUrl || wwLib?.wwUtils?.getCdnUrl;
+      if (typeof util === "function") return util(v);
+      return `https://cdn.weweb.io/${v.replace(/^\/+/, "")}`;
+    };
+
+    // Resolve a WeWeb SystemIcon value to its SVG markup.
+    watch(
+      () => props.content?.markerIcon,
+      async (iconValue) => {
+        if (!iconValue) {
+          resolvedIconSvg.value = "";
+          return;
+        }
+        try {
+          const svg = await getIcon(iconValue);
+          resolvedIconSvg.value = svg || "";
+        } catch {
+          resolvedIconSvg.value = "";
+        }
+      },
+      { immediate: true }
+    );
+
+    // Parse the resolved icon markup once and clone it per marker instead of
+    // re-parsing the same SVG string via innerHTML for every point.
+    let iconSvgTemplate = null;
+    watch(
+      resolvedIconSvg,
+      (svgMarkup) => {
+        if (!svgMarkup) {
+          iconSvgTemplate = null;
+          return;
+        }
+        const doc = wwLib.getFrontDocument();
+        const wrapper = doc.createElement("div");
+        wrapper.innerHTML = svgMarkup;
+        iconSvgTemplate = wrapper.querySelector("svg");
+      },
+      { immediate: true }
+    );
+    const cloneIconSvg = () =>
+      iconSvgTemplate ? iconSvgTemplate.cloneNode(true) : null;
+
+    // Build an <img> element to use as a custom marker, or null to fall back
+    // to the built-in colored pin.
+    const buildImageElement = (imageUrl) => {
+      const src = resolveImageUrl(imageUrl);
+      if (!src) return null;
+      const doc = wwLib.getFrontDocument();
+      const el = doc.createElement("img");
+      el.src = src;
+      el.alt = "";
+      el.draggable = false;
+      el.style.width = `${Number(props.content?.markerWidth ?? 32)}px`;
+      el.style.height = `${Number(props.content?.markerHeight ?? 40)}px`;
+      el.style.objectFit = "contain";
+      el.style.display = "block";
+      return el;
+    };
+
+    // Apply the shared pill styling (background/text/padding/radius/shadow)
+    // used by both the text-pill and icon-text-pill marker types.
+    const applyPillStyle = (el, point) => {
+      const baseBg = point.color || props.content?.pillBgColor || "#111827";
+      const baseText = props.content?.pillTextColor || "#FFFFFF";
+
+      el.style.display = "inline-flex";
+      el.style.alignItems = "center";
+      el.style.justifyContent = "center";
+      el.style.boxSizing = "border-box";
+      el.style.whiteSpace = "nowrap";
+      el.style.lineHeight = "1";
+      el.style.color = baseText;
+      el.style.fontSize = `${Number(props.content?.pillTextSize ?? 14)}px`;
+      el.style.fontWeight = props.content?.pillTextWeight || "600";
+      el.style.background = baseBg;
+      el.style.padding = props.content?.pillPadding || "6px 12px";
+      el.style.borderRadius = props.content?.pillRadius || "999px";
+      el.style.boxShadow =
+        props.content?.pillShadow ?? "0 1px 4px rgba(0, 0, 0, 0.25)";
+
+      return { baseBg, baseText };
+    };
+
+    // Wire the shared hover behavior (background/text/icon color swap) for
+    // pill-style markers.
+    const wirePillHover = (el, baseBg, baseText, iconHover = {}) => {
+      const hoverBg = props.content?.pillBgColorHover;
+      const hoverText = props.content?.pillTextColorHover;
+      const { iconSvgEl, iconColor, iconColorHover } = iconHover;
+
+      if (!hoverBg && !hoverText && !iconColorHover) return;
+
+      el.style.transition = "background-color 0.15s ease, color 0.15s ease";
+      el.addEventListener("mouseenter", () => {
+        if (hoverBg) el.style.background = hoverBg;
+        if (hoverText) el.style.color = hoverText;
+        if (iconColorHover && iconSvgEl) iconSvgEl.style.color = iconColorHover;
+      });
+      el.addEventListener("mouseleave", () => {
+        el.style.background = baseBg;
+        el.style.color = baseText;
+        if (iconSvgEl) iconSvgEl.style.color = iconColor;
+      });
+    };
+
+    // Build a rounded "pill" element showing the point's label.
+    const buildPillElement = (point) => {
+      const doc = wwLib.getFrontDocument();
+      const el = doc.createElement("div");
+      const { baseBg, baseText } = applyPillStyle(el, point);
+
+      el.textContent = point.label ?? "";
+      wirePillHover(el, baseBg, baseText);
+      return el;
+    };
+
+    // Prepare an SVG element for currentColor-based coloring. Forces `fill:
+    // currentColor` (rather than just stripping the attribute, which doesn't
+    // guarantee the element inherits `color`) on the root <svg> and every
+    // descendant that isn't explicitly "none"/"transparent".
+    const prepareIconSvg = (svgEl, size, color) => {
+      svgEl.style.width = `${size}px`;
+      svgEl.style.height = `${size}px`;
+      svgEl.style.display = "block";
+      svgEl.style.color = color;
+      svgEl.style.transition = "color 0.15s ease";
+      [svgEl, ...svgEl.querySelectorAll("[fill]")].forEach((el) => {
+        const val = el.getAttribute("fill");
+        if (val && val !== "none" && val !== "transparent") {
+          el.style.fill = "currentColor";
+        }
+      });
+      return svgEl;
+    };
+
+    // Build a colored circle with an icon inside.
+    const buildIconElement = (point) => {
+      const doc = wwLib.getFrontDocument();
+      const size = Number(props.content?.markerIconSize ?? 20);
+      const bgColor = point.color || props.content?.defaultMarkerColor || "#F23636";
+      const iconColor = props.content?.markerIconColor || "#FFFFFF";
+      const iconColorHover = props.content?.markerIconColorHover;
+
+      const el = doc.createElement("div");
+      el.style.width = `${size + 16}px`;
+      el.style.height = `${size + 16}px`;
+      el.style.borderRadius = "50%";
+      el.style.background = bgColor;
+      el.style.display = "flex";
+      el.style.alignItems = "center";
+      el.style.justifyContent = "center";
+      el.style.boxShadow = "0 1px 4px rgba(0, 0, 0, 0.25)";
+
+      let iconSvgEl = cloneIconSvg();
+      if (iconSvgEl) {
+        prepareIconSvg(iconSvgEl, size, iconColor);
+        el.appendChild(iconSvgEl);
+      }
+
+      if (iconColorHover && iconSvgEl) {
+        el.addEventListener("mouseenter", () => {
+          iconSvgEl.style.color = iconColorHover;
+        });
+        el.addEventListener("mouseleave", () => {
+          iconSvgEl.style.color = iconColor;
+        });
+      }
+
+      return el;
+    };
+
+    // Build a pill element with an icon prepended to the label text.
+    const buildIconPillElement = (point) => {
+      const doc = wwLib.getFrontDocument();
+      const el = doc.createElement("div");
+      const { baseBg, baseText } = applyPillStyle(el, point);
+      const iconSize = Number(props.content?.markerIconSize ?? 20);
+      const iconColor = props.content?.markerIconColor || "#FFFFFF";
+      const iconColorHover = props.content?.markerIconColorHover;
+      const iconGap = Number(props.content?.markerIconGap ?? 6);
+      el.style.gap = `${iconGap}px`;
+
+      let iconSvgEl = cloneIconSvg();
+      if (iconSvgEl) {
+        iconSvgEl.style.flexShrink = "0";
+        prepareIconSvg(iconSvgEl, iconSize, iconColor);
+        el.appendChild(iconSvgEl);
+      }
+
+      const textSpan = doc.createElement("span");
+      textSpan.textContent = point.label ?? "";
+      el.appendChild(textSpan);
+
+      wirePillHover(el, baseBg, baseText, { iconSvgEl, iconColor, iconColorHover });
+      return el;
+    };
+
+    // `forceRebuild` is used when a global appearance setting changes (marker
+    // type, colors, icon, pill style, etc.) — every marker must be rebuilt
+    // regardless of whether the underlying point data changed. Without it,
+    // ordinary per-point data updates only touch the markers whose fields
+    // actually changed, instead of tearing down and rebuilding every marker.
+    const renderMarkers = (forceRebuild = false) => {
+      if (!map) return;
+
+      const markerType = props.content?.markerType ?? "pin";
+      const defaultColor = props.content?.defaultMarkerColor || "#F23636";
+      const defaultImage = props.content?.defaultMarkerImage || "";
+      const anchor = props.content?.markerImageAnchor || "bottom";
+
+      const seenIds = new Set();
+
+      processedPoints.value.forEach((point) => {
+        seenIds.add(point.id);
+        const existing = markersById.get(point.id);
+
+        if (!forceRebuild && existing && pointsEqual(existing.point, point)) {
+          existing.point = point;
+          return;
+        }
+
+        if (existing) existing.marker.remove();
+
+        let element = null;
+        if (markerType === "image") {
+          element = buildImageElement(point.image || defaultImage);
+        } else if (markerType === "text-pill") {
+          element = buildPillElement(point);
+        } else if (markerType === "icon") {
+          element = buildIconElement(point);
+        } else if (markerType === "icon-text-pill") {
+          element = buildIconPillElement(point);
+        }
+
+        const marker = new maplibregl.Marker(
+          element
+            ? { element, anchor }
+            : { color: point.color || defaultColor }
+        ).setLngLat([point.longitude, point.latitude]);
+
+        marker.addTo(map);
+        wireMarkerEvents(marker.getElement(), point);
+        markersById.set(point.id, { marker, point });
+      });
+
+      markersById.forEach(({ marker }, id) => {
+        if (!seenIds.has(id)) {
+          marker.remove();
+          markersById.delete(id);
+        }
+      });
+    };
+
+    // Wire click / hover events on a marker element for a given point.
+    const wireMarkerEvents = (el, point) => {
+      el.style.cursor = "pointer";
+      el.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        emit("trigger-event", {
+          name: "marker:click",
+          event: { point: pointPayload(point) },
+        });
+        openPopup(point);
+      });
+      el.addEventListener("mouseenter", () => {
+        emit("trigger-event", {
+          name: "marker:mouseenter",
+          event: { point: pointPayload(point) },
+        });
+      });
+      el.addEventListener("mouseleave", () => {
+        emit("trigger-event", {
+          name: "marker:mouseleave",
+          event: { point: pointPayload(point) },
+        });
+      });
+    };
+
+    const syncControls = () => {
+      if (!map) return;
+
+      if (props.content?.showNavigation) {
+        if (!navControl) {
+          navControl = new maplibregl.NavigationControl();
+          map.addControl(navControl, "top-right");
+        }
+      } else if (navControl) {
+        map.removeControl(navControl);
+        navControl = null;
+      }
+
+      if (props.content?.showGeolocate) {
+        if (!geoControl) {
+          geoControl = new maplibregl.GeolocateControl({
+            positionOptions: { enableHighAccuracy: true },
+            trackUserLocation: true,
+          });
+          map.addControl(geoControl, "top-right");
+        }
+      } else if (geoControl) {
+        map.removeControl(geoControl);
+        geoControl = null;
+      }
+
+      if (props.content?.scrollZoom ?? true) {
+        map.scrollZoom.enable();
+      } else {
+        map.scrollZoom.disable();
+      }
+
+      if (props.content?.showAttribution ?? true) {
+        if (!attributionControl) {
+          attributionControl = new maplibregl.AttributionControl();
+          map.addControl(attributionControl, "bottom-right");
+        }
+      } else if (attributionControl) {
+        map.removeControl(attributionControl);
+        attributionControl = null;
+      }
+    };
+
+    // WeWeb doesn't reliably inject CSS imported from node_modules, and without
+    // MapLibre's CSS the canvas is mispositioned and drag/pan interaction breaks
+    // (tiles/markers still show via inline transforms). Inject it explicitly.
+    const ensureMapLibreCss = () => {
+      const doc = wwLib.getFrontDocument();
+      if (!doc || doc.getElementById("maplibre-gl-css")) return;
+      const link = doc.createElement("link");
+      link.id = "maplibre-gl-css";
+      link.rel = "stylesheet";
+      // Pin to the actual running maplibre-gl version so this never drifts
+      // from whatever version was resolved by the "^" range in package.json.
+      const version = maplibregl.getVersion?.() || "4.7.1";
+      link.href = `https://unpkg.com/maplibre-gl@${version}/dist/maplibre-gl.css`;
+      doc.head.appendChild(link);
+    };
+
+    let initAttempts = 0;
+    let isUnmounted = false;
+    const initMap = () => {
+      if (map || isUnmounted) return;
+      ensureMapLibreCss();
+      // The element ref may not be attached yet in WeWeb — retry a few frames.
+      if (!mapContainer.value) {
+        if (initAttempts++ > 60) {
+          console.warn(
+            "[maplibre-map] Gave up waiting for the container element to mount; the map was not initialized."
+          );
+          return;
+        }
+        const win = wwLib.getFrontWindow();
+        win.setTimeout(initMap, 50);
+        return;
+      }
+
+      map = new maplibregl.Map({
+        container: mapContainer.value,
+        style: styleUrl.value,
+        center: center.value,
+        zoom: zoom.value,
+        // Attribution is managed manually via syncControls() so it can be
+        // toggled at runtime (bindable prop), same as nav/geolocate below.
+        attributionControl: false,
+        scrollZoom: props.content?.scrollZoom ?? true,
+      });
+
+      map.on("load", () => {
+        setIsMapLoaded(true);
+        // Defensive: make sure interaction handlers are active and the canvas
+        // actually receives pointer events.
+        try {
+          map.dragPan.enable();
+          map.doubleClickZoom.enable();
+          map.touchZoomRotate.enable();
+          map.keyboard.enable();
+          const canvasContainer = map.getCanvasContainer();
+          if (canvasContainer) canvasContainer.style.pointerEvents = "auto";
+          const canvas = map.getCanvas();
+          if (canvas) canvas.style.pointerEvents = "auto";
+        } catch (e) {
+          /* no-op */
+        }
+        map.resize();
+        syncControls();
+        renderMarkers();
+        emit("trigger-event", { name: "map:load", event: {} });
+        applyEditorPopup();
+      });
+
+      map.on("click", (e) => {
+        emit("trigger-event", {
+          name: "map:click",
+          event: { lngLat: { lng: e.lngLat.lng, lat: e.lngLat.lat } },
+        });
+        // Keep the popup open while it's force-opened in the editor.
+        if (isEditing.value && props.content?.forcePopupInEditor) return;
+        closePopup();
+      });
+
+      map.on("moveend", () => {
+        const c = map.getCenter();
+        const z = map.getZoom();
+        setMapCenter({ lng: c.lng, lat: c.lat });
+        setMapZoom(z);
+        emit("trigger-event", {
+          name: "map:move",
+          event: { center: { lng: c.lng, lat: c.lat }, zoom: z },
+        });
+      });
+
+      const win = wwLib.getFrontWindow();
+      if (win?.ResizeObserver) {
+        resizeObserver = new win.ResizeObserver(() => {
+          map?.resize();
+        });
+        resizeObserver.observe(mapContainer.value);
+      }
+    };
+
+    // ----- Watchers -----
+    // DOM markers persist across setStyle (they live in the map container, not
+    // the style), so we only swap the style.
+    watch(styleUrl, (newUrl) => {
+      if (!map || !newUrl) return;
+      map.setStyle(newUrl);
+    });
+
+    // Use a primitive key so this only fires when the coordinates actually
+    // change — not on every content re-pass (which would snap the map back to
+    // the initial center and break user panning).
+    watch(
+      () =>
+        `${Number(props.content?.initialLongitude)},${Number(
+          props.content?.initialLatitude
+        )}`,
+      () => {
+        const lng = Number(props.content?.initialLongitude);
+        const lat = Number(props.content?.initialLatitude);
+        if (map && Number.isFinite(lng) && Number.isFinite(lat)) {
+          map.setCenter([lng, lat]);
+        }
+      }
+    );
+
+    watch(zoom, (newZoom) => {
+      if (map && Number.isFinite(newZoom)) {
+        map.setZoom(newZoom);
+      }
+    });
+
+    watch(
+      processedPoints,
+      () => {
+        renderMarkers();
+      },
+      { deep: true }
+    );
+
+    watch(
+      () => [
+        props.content?.showNavigation,
+        props.content?.showGeolocate,
+        props.content?.scrollZoom,
+        props.content?.showAttribution,
+      ],
+      () => {
+        syncControls();
+      }
+    );
+
+    // Marker appearance changes re-render the markers.
+    watch(
+      () => [
+        props.content?.markerType,
+        props.content?.defaultMarkerColor,
+        props.content?.defaultMarkerImage,
+        props.content?.markerWidth,
+        props.content?.markerHeight,
+        props.content?.markerImageAnchor,
+        props.content?.pillTextColor,
+        props.content?.pillTextColorHover,
+        props.content?.pillTextSize,
+        props.content?.pillTextWeight,
+        props.content?.pillBgColor,
+        props.content?.pillBgColorHover,
+        props.content?.pillPadding,
+        props.content?.pillRadius,
+        props.content?.pillShadow,
+        props.content?.markerIcon,
+        props.content?.markerIconSize,
+        props.content?.markerIconColor,
+        props.content?.markerIconColorHover,
+        props.content?.markerIconGap,
+        resolvedIconSvg.value,
+      ],
+      () => {
+        renderMarkers(true);
+      }
+    );
+
+    // Keep the popup glued to its point when the point's coordinates change
+    // (e.g. bound data updates); close it if the selected point disappears.
+    watch(selectedCoords, (coords) => {
+      if (popupMarker && coords) popupMarker.setLngLat(coords);
+      if (isPopupVisible.value && !coords) closePopup();
+    });
+
+    watch(popupOffset, (offset) => {
+      if (popupMarker) popupMarker.setOffset(offset);
+    });
+
+    watch(
+      () => props.content?.showPopups,
+      (enabled) => {
+        if (!enabled) closePopup();
+      }
+    );
+
+    // Re-apply the forced editor popup when the toggle or points change.
+    // (No-op in the published app since applyEditorPopup checks isEditing.)
+    watch(
+      () => [
+        isEditing.value,
+        props.content?.forcePopupInEditor,
+        props.content?.showPopups,
+        processedPoints.value.length,
+      ],
+      () => applyEditorPopup(),
+      { immediate: true }
+    );
+
+    onMounted(() => {
+      nextTick(() => initMap());
+    });
+
+    onBeforeUnmount(() => {
+      isUnmounted = true;
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+        resizeObserver = null;
+      }
+      clearMarkers();
+      if (popupMarker) {
+        popupMarker.remove();
+        popupMarker = null;
+      }
+      if (map) {
+        map.remove();
+        map = null;
+      }
+    });
+
+    return {
+      mapContainer,
+      popupAnchorEl,
+      isPopupVisible,
+      mapCenter,
+      mapZoom,
+      isMapLoaded,
+      selectedPoint,
+      isEditing,
+    };
   },
 };
 </script>
 
 <style lang="scss" scoped>
-.my-element {
-  p {
-    font-size: 18px;
+.maplibre-map {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 200px;
+  overflow: hidden;
+
+  &__container {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  // Popup host — MapLibre relocates this node into its marker pane and
+  // positions it; we only ensure it can hold dropped WeWeb content.
+  &__popup {
+    z-index: 2;
+  }
+
+  &__popup-layout {
+    min-width: 40px;
+    min-height: 24px;
   }
 }
 </style>
