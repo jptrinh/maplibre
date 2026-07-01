@@ -35,7 +35,8 @@ export default {
     // undefined there, so this is false (no reliance on wwEditor stripping).
     const isEditing = computed(() => !!props.wwEditorState?.isEditing);
 
-    const mapContainer = ref(null);
+    const mapContainer = ref(null); // Vue-rendered wrapper, lives in the front document
+    let glContainer = null; // actual MapLibre container, see initMap()
     const popupAnchorEl = ref(null);
     let map = null;
     let markersById = new Map(); // point.id -> { marker, point }
@@ -636,8 +637,29 @@ export default {
         return;
       }
 
+      // MapLibre validates `container` with `instanceof HTMLElement` against
+      // the HTMLElement class from whichever document its own bundled code
+      // runs in. In the WeWeb editor that's a different document/realm than
+      // the one Vue mounts our template into (mapContainer.value), so both
+      // passing the Vue-rendered element and passing its id (which MapLibre
+      // resolves via a bare `document.getElementById` in its own realm)
+      // fail there — see the "Invalid type" / "Container ... not found"
+      // errors this used to throw. Creating the element via the bare
+      // `document` here puts it in MapLibre's own realm so the check
+      // passes; appending it into the Vue-rendered wrapper afterward is
+      // what makes it actually show up in the right place on the page (the
+      // instanceof check only runs once, at construction, before that
+      // append happens). Works the same in the published app, where there's
+      // no realm split to begin with.
+      glContainer = document.createElement("div");
+      glContainer.style.position = "absolute";
+      glContainer.style.inset = "0";
+      glContainer.style.width = "100%";
+      glContainer.style.height = "100%";
+      mapContainer.value.appendChild(glContainer);
+
       map = new maplibregl.Map({
-        container: mapContainer.value,
+        container: glContainer,
         style: styleUrl.value,
         center: center.value,
         zoom: zoom.value,
@@ -831,6 +853,8 @@ export default {
         map.remove();
         map = null;
       }
+      // Vue removes mapContainer.value (and glContainer with it) on unmount.
+      glContainer = null;
     });
 
     return {
