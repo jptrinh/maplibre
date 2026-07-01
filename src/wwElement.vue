@@ -47,7 +47,14 @@ export default {
     const isPopupVisible = ref(false);
     const selectedPointId = ref(null);
     const resolvedIconSvg = ref("");
-    const { getIcon } = wwLib.useIcons();
+    const iconApi = wwLib?.useIcons?.();
+    const getIcon =
+      typeof iconApi?.getIcon === "function" ? iconApi.getIcon : null;
+    const formulaApi = wwLib?.wwFormula?.useFormula?.();
+    const resolveMappingFormula =
+      typeof formulaApi?.resolveMappingFormula === "function"
+        ? formulaApi.resolveMappingFormula
+        : null;
 
     // ----- Internal variables -----
     const { value: mapCenter, setValue: setMapCenter } =
@@ -100,37 +107,38 @@ export default {
       const items = Array.isArray(props.content?.points)
         ? props.content.points
         : [];
-      const { resolveMappingFormula } = wwLib.wwFormula.useFormula();
-
       return items
         .map((item, index) => {
           const latitude = Number(
-            resolveMappingFormula(props.content?.pointsLatitudeFormula, item) ??
+            resolveMappingFormula?.(
+              props.content?.pointsLatitudeFormula,
+              item
+            ) ??
               item?.latitude
           );
           const longitude = Number(
-            resolveMappingFormula(
+            resolveMappingFormula?.(
               props.content?.pointsLongitudeFormula,
               item
             ) ?? item?.longitude
           );
           const label =
-            resolveMappingFormula(props.content?.pointsLabelFormula, item) ??
+            resolveMappingFormula?.(props.content?.pointsLabelFormula, item) ??
             item?.label ??
             "";
           const description =
-            resolveMappingFormula(
+            resolveMappingFormula?.(
               props.content?.pointsDescriptionFormula,
               item
             ) ??
             item?.description ??
             "";
           const color =
-            resolveMappingFormula(props.content?.pointsColorFormula, item) ??
+            resolveMappingFormula?.(props.content?.pointsColorFormula, item) ??
             item?.color ??
             "";
           const image =
-            resolveMappingFormula(props.content?.pointsImageFormula, item) ??
+            resolveMappingFormula?.(props.content?.pointsImageFormula, item) ??
             item?.image ??
             "";
 
@@ -281,7 +289,7 @@ export default {
     watch(
       () => props.content?.markerIcon,
       async (iconValue) => {
-        if (!iconValue) {
+        if (!iconValue || !getIcon) {
           resolvedIconSvg.value = "";
           return;
         }
