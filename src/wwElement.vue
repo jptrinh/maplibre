@@ -6,7 +6,19 @@
       anchored to the selected point on zoom / drag / rotate. v-show toggles
       visibility without detaching it from Vue's control.
     -->
-    <div ref="popupAnchorEl" v-show="isPopupVisible" class="maplibre-map__popup">
+    <!--
+      Stop clicks (and the mousedown/dblclick that MapLibre also watches) from
+      bubbling to the map's canvas container, where map.on("click") lives and
+      would call closePopup(). Without this, clicking inside the popup closes it.
+    -->
+    <div
+      ref="popupAnchorEl"
+      v-show="isPopupVisible"
+      class="maplibre-map__popup"
+      @click.stop
+      @mousedown.stop
+      @dblclick.stop
+    >
       <wwLayout
         path="popupContent"
         direction="column"
@@ -890,6 +902,7 @@ export default {
   // positions it; we only ensure it can hold dropped WeWeb content.
   &__popup {
     z-index: 2;
+    cursor: default;
   }
 
   &__popup-layout {
