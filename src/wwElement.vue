@@ -60,6 +60,7 @@ export default {
     const isPopupVisible = ref(false);
     const selectedPointId = ref(null);
     const resolvedIconSvg = ref("");
+    const resolvedIconSvgTrailing = ref("");
     const iconApi = wwLib?.useIcons?.();
     const getIcon =
       typeof iconApi?.getIcon === "function" ? iconApi.getIcon : null;
@@ -122,47 +123,32 @@ export default {
         : [];
       return items
         .map((item, index) => {
-          const latitude = Number(
-            resolveMappingFormula?.(
-              props.content?.pointsLatitudeFormula,
-              item
-            ) ??
-              item?.latitude
-          );
-          const longitude = Number(
-            resolveMappingFormula?.(
-              props.content?.pointsLongitudeFormula,
-              item
-            ) ?? item?.longitude
-          );
-          const label =
-            resolveMappingFormula?.(props.content?.pointsLabelFormula, item) ??
-            item?.label ??
-            "";
-          const description =
-            resolveMappingFormula?.(
-              props.content?.pointsDescriptionFormula,
-              item
-            ) ??
-            item?.description ??
-            "";
-          const color =
-            resolveMappingFormula?.(props.content?.pointsColorFormula, item) ??
-            item?.color ??
-            "";
-          const image =
-            resolveMappingFormula?.(props.content?.pointsImageFormula, item) ??
-            item?.image ??
-            "";
+          // Resolve a point field: mapping formula → raw item field → default.
+          const field = (formula, key, dflt) =>
+            resolveMappingFormula?.(formula, item) ?? item?.[key] ?? dflt;
+          const c = props.content;
 
           return {
             id: `point-${item?.id ?? item?.uid ?? index}`,
-            latitude,
-            longitude,
-            label,
-            description,
-            color,
-            image,
+            latitude: Number(field(c?.pointsLatitudeFormula, "latitude")),
+            longitude: Number(field(c?.pointsLongitudeFormula, "longitude")),
+            label: field(c?.pointsLabelFormula, "label", ""),
+            description: field(c?.pointsDescriptionFormula, "description", ""),
+            color: field(c?.pointsColorFormula, "color", ""),
+            image: field(c?.pointsImageFormula, "image", ""),
+            icon: field(c?.pointsIconFormula, "icon", ""),
+            iconTrailing: field(c?.pointsIconTrailingFormula, "iconTrailing", ""),
+            displayIcon:
+              field(c?.pointsDisplayIconFormula, "displayIcon", true) !== false,
+            displayIconTrailing:
+              field(c?.pointsDisplayIconTrailingFormula, "displayIconTrailing", true) !==
+              false,
+            iconColor: field(c?.pointsIconColorFormula, "iconColor", ""),
+            iconColorSelected: field(
+              c?.pointsIconColorSelectedFormula,
+              "iconColorSelected",
+              ""
+            ),
             originalItem: item,
           };
         })
@@ -201,6 +187,12 @@ export default {
       description: point.description,
       color: point.color,
       image: point.image,
+      icon: point.icon,
+      iconTrailing: point.iconTrailing,
+      displayIcon: point.displayIcon,
+      displayIconTrailing: point.displayIconTrailing,
+      iconColor: point.iconColor,
+      iconColorSelected: point.iconColorSelected,
       originalItem: point.originalItem,
     });
 
@@ -276,7 +268,13 @@ export default {
       a.label === b.label &&
       a.description === b.description &&
       a.color === b.color &&
-      a.image === b.image;
+      a.image === b.image &&
+      a.icon === b.icon &&
+      a.iconTrailing === b.iconTrailing &&
+      a.displayIcon === b.displayIcon &&
+      a.displayIconTrailing === b.displayIconTrailing &&
+      a.iconColor === b.iconColor &&
+      a.iconColorSelected === b.iconColorSelected;
 
     // Resolve a WeWeb Image value to a usable src. Picker values are relative
     // paths (e.g. "designs/.../foo.png") that must be prefixed with the CDN;
@@ -298,43 +296,117 @@ export default {
       return `https://cdn.weweb.io/${v.replace(/^\/+/, "")}`;
     };
 
-    // Resolve a WeWeb SystemIcon value to its SVG markup.
+    // Resolve a WeWeb SystemIcon value to its SVG markup, mirroring it into the
+    // given ref.
+    const watchSystemIcon = (getValue, target) =>
+      watch(
+        getValue,
+        async (iconValue) => {
+          if (!iconValue || !getIcon) {
+            target.value = "";
+            return;
+          }
+          try {
+            const svg = await getIcon(iconValue);
+            target.value = svg || "";
+          } catch {
+            target.value = "";
+          }
+        },
+        { immediate: true }
+      );
+    watchSystemIcon(() => props.content?.markerIcon, resolvedIconSvg);
+    watchSystemIcon(() => props.content?.markerIconTrailing, resolvedIconSvgTrailing);
+
+    // Parse a resolved icon SVG string into a reusable <svg> template element
+    // that can be cloned per marker (rather than re-parsing via innerHTML for
+    // every point).
+    const parseIconTemplate = (svgMarkup) => {
+      if (!svgMarkup) return null;
+      const doc = wwLib.getFrontDocument();
+      const wrapper = doc.createElement("div");
+      wrapper.innerHTML = svgMarkup;
+      return wrapper.querySelector("svg");
+    };
+
+    // Templates for the style-panel leading/trailing icons (used as the
+    // fallback for points that don't define their own icon).
+    let iconSvgTemplate = null;
+    let iconSvgTemplateTrailing = null;
     watch(
-      () => props.content?.markerIcon,
-      async (iconValue) => {
-        if (!iconValue || !getIcon) {
-          resolvedIconSvg.value = "";
-          return;
-        }
-        try {
-          const svg = await getIcon(iconValue);
-          resolvedIconSvg.value = svg || "";
-        } catch {
-          resolvedIconSvg.value = "";
-        }
+      resolvedIconSvg,
+      (svgMarkup) => {
+        iconSvgTemplate = parseIconTemplate(svgMarkup);
+      },
+      { immediate: true }
+    );
+    watch(
+      resolvedIconSvgTrailing,
+      (svgMarkup) => {
+        iconSvgTemplateTrailing = parseIconTemplate(svgMarkup);
       },
       { immediate: true }
     );
 
-    // Parse the resolved icon markup once and clone it per marker instead of
-    // re-parsing the same SVG string via innerHTML for every point.
-    let iconSvgTemplate = null;
-    watch(
-      resolvedIconSvg,
-      (svgMarkup) => {
-        if (!svgMarkup) {
-          iconSvgTemplate = null;
-          return;
-        }
-        const doc = wwLib.getFrontDocument();
-        const wrapper = doc.createElement("div");
-        wrapper.innerHTML = svgMarkup;
-        iconSvgTemplate = wrapper.querySelector("svg");
-      },
-      { immediate: true }
-    );
-    const cloneIconSvg = () =>
-      iconSvgTemplate ? iconSvgTemplate.cloneNode(true) : null;
+    // Per-point icon templates, keyed by SystemIcon value. Icons resolve
+    // asynchronously, so we cache each distinct value and rebuild the markers
+    // once new ones arrive.
+    const pointIconTemplates = new Map();
+    const resolvePointIcons = async () => {
+      if (!getIcon) return;
+      const values = new Set();
+      processedPoints.value.forEach((p) => {
+        if (p.icon) values.add(p.icon);
+        if (p.iconTrailing) values.add(p.iconTrailing);
+      });
+      const pending = [...values].filter((v) => !pointIconTemplates.has(v));
+      if (!pending.length) return;
+      // Resolve the distinct new icons in parallel rather than one at a time.
+      await Promise.all(
+        pending.map(async (value) => {
+          try {
+            const svg = await getIcon(value);
+            pointIconTemplates.set(value, parseIconTemplate(svg || ""));
+          } catch {
+            pointIconTemplates.set(value, null);
+          }
+        })
+      );
+      renderMarkers(true);
+    };
+
+    // Clone an icon for a point. Each icon has its own "Display icon" toggle;
+    // when off that icon is hidden. Otherwise use the point's own icon if
+    // defined (and resolved), falling back to the corresponding style-panel icon.
+    const cloneIconForPoint = (point, position = "leading") => {
+      const enabled =
+        position === "trailing" ? point.displayIconTrailing : point.displayIcon;
+      if (enabled === false) return null;
+      const pointValue = position === "trailing" ? point.iconTrailing : point.icon;
+      if (pointValue && pointIconTemplates.has(pointValue)) {
+        const tpl = pointIconTemplates.get(pointValue);
+        return tpl ? tpl.cloneNode(true) : null;
+      }
+      const fallback =
+        position === "trailing" ? iconSvgTemplateTrailing : iconSvgTemplate;
+      return fallback ? fallback.cloneNode(true) : null;
+    };
+
+    // Resting icon color for a point. When the point is selected, use its own
+    // selected color, then the global selected color; otherwise use its own
+    // icon color, then the global icon color.
+    const iconColorForPoint = (point) => {
+      const base =
+        point.iconColor || props.content?.markerIconColor || "#FFFFFF";
+      if (point.id === selectedPointId.value) {
+        return (
+          point.iconColorSelected ||
+          props.content?.markerIconColorSelected ||
+          base
+        );
+      }
+      return base;
+    };
 
     // Build an <img> element to use as a custom marker, or null to fall back
     // to the built-in colored pin.
@@ -382,7 +454,8 @@ export default {
     const wirePillHover = (el, baseBg, baseText, iconHover = {}) => {
       const hoverBg = props.content?.pillBgColorHover;
       const hoverText = props.content?.pillTextColorHover;
-      const { iconSvgEl, iconColor, iconColorHover } = iconHover;
+      const { iconColor, iconColorHover } = iconHover;
+      const iconSvgEls = (iconHover.iconSvgEls || []).filter(Boolean);
 
       if (!hoverBg && !hoverText && !iconColorHover) return;
 
@@ -390,12 +463,13 @@ export default {
       el.addEventListener("mouseenter", () => {
         if (hoverBg) el.style.background = hoverBg;
         if (hoverText) el.style.color = hoverText;
-        if (iconColorHover && iconSvgEl) iconSvgEl.style.color = iconColorHover;
+        if (iconColorHover)
+          iconSvgEls.forEach((icon) => (icon.style.color = iconColorHover));
       });
       el.addEventListener("mouseleave", () => {
         el.style.background = baseBg;
         el.style.color = baseText;
-        if (iconSvgEl) iconSvgEl.style.color = iconColor;
+        iconSvgEls.forEach((icon) => (icon.style.color = iconColor));
       });
     };
 
@@ -434,7 +508,7 @@ export default {
       const doc = wwLib.getFrontDocument();
       const size = Number(props.content?.markerIconSize ?? 20);
       const bgColor = point.color || props.content?.defaultMarkerColor || "#F23636";
-      const iconColor = props.content?.markerIconColor || "#FFFFFF";
+      const iconColor = iconColorForPoint(point);
       const iconColorHover = props.content?.markerIconColorHover;
 
       const el = doc.createElement("div");
@@ -447,7 +521,7 @@ export default {
       el.style.justifyContent = "center";
       el.style.boxShadow = "0 1px 4px rgba(0, 0, 0, 0.25)";
 
-      let iconSvgEl = cloneIconSvg();
+      let iconSvgEl = cloneIconForPoint(point);
       if (iconSvgEl) {
         prepareIconSvg(iconSvgEl, size, iconColor);
         el.appendChild(iconSvgEl);
@@ -471,23 +545,34 @@ export default {
       const el = doc.createElement("div");
       const { baseBg, baseText } = applyPillStyle(el, point);
       const iconSize = Number(props.content?.markerIconSize ?? 20);
-      const iconColor = props.content?.markerIconColor || "#FFFFFF";
+      const iconColor = iconColorForPoint(point);
       const iconColorHover = props.content?.markerIconColorHover;
       const iconGap = Number(props.content?.markerIconGap ?? 6);
       el.style.gap = `${iconGap}px`;
 
-      let iconSvgEl = cloneIconSvg();
-      if (iconSvgEl) {
-        iconSvgEl.style.flexShrink = "0";
-        prepareIconSvg(iconSvgEl, iconSize, iconColor);
-        el.appendChild(iconSvgEl);
+      let leadingIconEl = cloneIconForPoint(point, "leading");
+      if (leadingIconEl) {
+        leadingIconEl.style.flexShrink = "0";
+        prepareIconSvg(leadingIconEl, iconSize, iconColor);
+        el.appendChild(leadingIconEl);
       }
 
       const textSpan = doc.createElement("span");
       textSpan.textContent = point.label ?? "";
       el.appendChild(textSpan);
 
-      wirePillHover(el, baseBg, baseText, { iconSvgEl, iconColor, iconColorHover });
+      let trailingIconEl = cloneIconForPoint(point, "trailing");
+      if (trailingIconEl) {
+        trailingIconEl.style.flexShrink = "0";
+        prepareIconSvg(trailingIconEl, iconSize, iconColor);
+        el.appendChild(trailingIconEl);
+      }
+
+      wirePillHover(el, baseBg, baseText, {
+        iconSvgEls: [leadingIconEl, trailingIconEl],
+        iconColor,
+        iconColorHover,
+      });
       return el;
     };
 
@@ -699,6 +784,7 @@ export default {
         }
         map.resize();
         syncControls();
+        resolvePointIcons();
         renderMarkers();
         emit("trigger-event", { name: "map:load", event: {} });
         applyEditorPopup();
@@ -768,6 +854,7 @@ export default {
     watch(
       processedPoints,
       () => {
+        resolvePointIcons();
         renderMarkers();
       },
       { deep: true }
@@ -804,11 +891,14 @@ export default {
         props.content?.pillRadius,
         props.content?.pillShadow,
         props.content?.markerIcon,
+        props.content?.markerIconTrailing,
         props.content?.markerIconSize,
         props.content?.markerIconColor,
         props.content?.markerIconColorHover,
+        props.content?.markerIconColorSelected,
         props.content?.markerIconGap,
         resolvedIconSvg.value,
+        resolvedIconSvgTrailing.value,
       ],
       () => {
         renderMarkers(true);
@@ -820,6 +910,16 @@ export default {
     watch(selectedCoords, (coords) => {
       if (popupMarker && coords) popupMarker.setLngLat(coords);
       if (isPopupVisible.value && !coords) closePopup();
+    });
+
+    // Rebuild markers when the selection changes so the per-point selected
+    // icon color is applied to the newly selected point and cleared elsewhere.
+    // Only icon-based markers vary with selection, so skip the rebuild for the
+    // pin/image/text-pill types whose appearance never depends on it.
+    watch(selectedPointId, () => {
+      if (["icon", "icon-text-pill"].includes(props.content?.markerType ?? "pin")) {
+        renderMarkers(true);
+      }
     });
 
     watch(popupOffset, (offset) => {

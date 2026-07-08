@@ -1,3 +1,23 @@
+// Factory for a "map this point field from a collection" Formula property.
+// Every points*Formula shares the same shape — only the label and the mapping
+// key differ — so they're generated instead of copy-pasted.
+const pointFormula = (label, key) => ({
+  label: { en: label },
+  type: "Formula",
+  section: "settings",
+  options: (content) => ({
+    template:
+      Array.isArray(content.points) && content.points.length > 0
+        ? content.points[0]
+        : null,
+  }),
+  defaultValue: { type: "f", code: `context.mapping?.['${key}']` },
+  hidden: (content, sidepanelContent, boundProps) =>
+    !Array.isArray(content.points) ||
+    !content.points?.length ||
+    !boundProps.points,
+});
+
 export default {
   editor: {
     label: {
@@ -23,6 +43,12 @@ export default {
           "pointsDescriptionFormula",
           "pointsColorFormula",
           "pointsImageFormula",
+          "pointsIconFormula",
+          "pointsIconTrailingFormula",
+          "pointsDisplayIconFormula",
+          "pointsDisplayIconTrailingFormula",
+          "pointsIconColorFormula",
+          "pointsIconColorSelectedFormula",
         ],
       },
 
@@ -41,7 +67,8 @@ export default {
       },
       {
         label: "Icon",
-        properties: ["markerIcon", "markerIconSize", "markerIconColor", "markerIconColorHover", "markerIconGap"],
+        isCollapsible: true,
+        properties: ["markerIcon", "markerIconTrailing", "markerIconSize", "markerIconColor", "markerIconColorHover", "markerIconColorSelected", "markerIconGap"],
       },
       {
         label: "Text pill",
@@ -257,6 +284,12 @@ export default {
             description: "",
             color: "",
             image: "",
+            icon: "",
+            iconTrailing: "",
+            displayIcon: true,
+            displayIconTrailing: true,
+            iconColor: "",
+            iconColorSelected: "",
           },
           options: {
             item: {
@@ -266,6 +299,12 @@ export default {
               description: { label: { en: "Description" }, type: "Text" },
               color: { label: { en: "Color" }, type: "Color" },
               image: { label: { en: "Image URL" }, type: "Text" },
+              displayIcon: { label: { en: "Display leading icon" }, type: "OnOff", defaultValue: true },
+              icon: { label: { en: "Leading icon" }, type: "SystemIcon" },
+              displayIconTrailing: { label: { en: "Display trailing icon" }, type: "OnOff", defaultValue: true },
+              iconTrailing: { label: { en: "Trailing icon" }, type: "SystemIcon" },
+              iconColor: { label: { en: "Icon color" }, type: "Color" },
+              iconColorSelected: { label: { en: "Icon color (selected)" }, type: "Color" },
             },
           },
         },
@@ -274,106 +313,22 @@ export default {
       bindingValidation: {
         type: "array",
         tooltip:
-          "Array of point objects with latitude, longitude, label, description, color, image.",
+          "Array of point objects with latitude, longitude, label, description, color, image, icon, iconTrailing, displayIcon, displayIconTrailing, iconColor, iconColorSelected.",
       },
       /* wwEditor:end */
     },
-    pointsLatitudeFormula: {
-      label: { en: "Latitude field" },
-      type: "Formula",
-      section: "settings",
-      options: (content) => ({
-        template:
-          Array.isArray(content.points) && content.points.length > 0
-            ? content.points[0]
-            : null,
-      }),
-      defaultValue: { type: "f", code: "context.mapping?.['latitude']" },
-      hidden: (content, sidepanelContent, boundProps) =>
-        !Array.isArray(content.points) ||
-        !content.points?.length ||
-        !boundProps.points,
-    },
-    pointsLongitudeFormula: {
-      label: { en: "Longitude field" },
-      type: "Formula",
-      section: "settings",
-      options: (content) => ({
-        template:
-          Array.isArray(content.points) && content.points.length > 0
-            ? content.points[0]
-            : null,
-      }),
-      defaultValue: { type: "f", code: "context.mapping?.['longitude']" },
-      hidden: (content, sidepanelContent, boundProps) =>
-        !Array.isArray(content.points) ||
-        !content.points?.length ||
-        !boundProps.points,
-    },
-    pointsLabelFormula: {
-      label: { en: "Label field" },
-      type: "Formula",
-      section: "settings",
-      options: (content) => ({
-        template:
-          Array.isArray(content.points) && content.points.length > 0
-            ? content.points[0]
-            : null,
-      }),
-      defaultValue: { type: "f", code: "context.mapping?.['label']" },
-      hidden: (content, sidepanelContent, boundProps) =>
-        !Array.isArray(content.points) ||
-        !content.points?.length ||
-        !boundProps.points,
-    },
-    pointsDescriptionFormula: {
-      label: { en: "Description field" },
-      type: "Formula",
-      section: "settings",
-      options: (content) => ({
-        template:
-          Array.isArray(content.points) && content.points.length > 0
-            ? content.points[0]
-            : null,
-      }),
-      defaultValue: { type: "f", code: "context.mapping?.['description']" },
-      hidden: (content, sidepanelContent, boundProps) =>
-        !Array.isArray(content.points) ||
-        !content.points?.length ||
-        !boundProps.points,
-    },
-    pointsColorFormula: {
-      label: { en: "Marker color" },
-      type: "Formula",
-      section: "settings",
-      options: (content) => ({
-        template:
-          Array.isArray(content.points) && content.points.length > 0
-            ? content.points[0]
-            : null,
-      }),
-      defaultValue: { type: "f", code: "context.mapping?.['color']" },
-      hidden: (content, sidepanelContent, boundProps) =>
-        !Array.isArray(content.points) ||
-        !content.points?.length ||
-        !boundProps.points,
-    },
-    pointsImageFormula: {
-      label: { en: "Image field" },
-      type: "Formula",
-      section: "settings",
-      options: (content) => ({
-        template:
-          Array.isArray(content.points) && content.points.length > 0
-            ? content.points[0]
-            : null,
-      }),
-      defaultValue: { type: "f", code: "context.mapping?.['image']" },
-      hidden: (content, sidepanelContent, boundProps) =>
-        !Array.isArray(content.points) ||
-        !content.points?.length ||
-        !boundProps.points,
-    },
+    pointsLatitudeFormula: pointFormula("Latitude field", "latitude"),
+    pointsLongitudeFormula: pointFormula("Longitude field", "longitude"),
+    pointsLabelFormula: pointFormula("Label field", "label"),
+    pointsDescriptionFormula: pointFormula("Description field", "description"),
+    pointsColorFormula: pointFormula("Marker color", "color"),
+    pointsImageFormula: pointFormula("Image field", "image"),
+    pointsIconFormula: pointFormula("Leading icon field", "icon"),
+    pointsIconTrailingFormula: pointFormula("Trailing icon field", "iconTrailing"),
+    pointsDisplayIconFormula: pointFormula("Display leading icon field", "displayIcon"),
+    pointsDisplayIconTrailingFormula: pointFormula("Display trailing icon field", "displayIconTrailing"),
+    pointsIconColorFormula: pointFormula("Icon color field", "iconColor"),
+    pointsIconColorSelectedFormula: pointFormula("Icon color (selected) field", "iconColorSelected"),
     markerType: {
       label: { en: "Marker type" },
       type: "TextSelect",
@@ -490,7 +445,7 @@ export default {
     },
     // ----- Icon props -----
     markerIcon: {
-      label: { en: "Marker icon" },
+      label: { en: "Leading icon" },
       type: "SystemIcon",
       section: "style",
       defaultValue: "",
@@ -500,11 +455,30 @@ export default {
       /* wwEditor:start */
       bindingValidation: {
         type: "string",
-        tooltip: "Icon code displayed on the marker.",
+        tooltip: "Leading icon code displayed on the marker.",
       },
       propertyHelp: {
         tooltip:
-          "Choose an icon for the marker. Used when marker type is 'Icon' or 'Icon and Text pill'.",
+          "Icon shown before the label. Used when marker type is 'Icon' or 'Icon and Text pill'.",
+      },
+      /* wwEditor:end */
+    },
+    markerIconTrailing: {
+      label: { en: "Trailing icon" },
+      type: "SystemIcon",
+      section: "style",
+      defaultValue: "",
+      bindable: true,
+      hidden: (content) =>
+        (content?.markerType ?? "pin") !== "icon-text-pill",
+      /* wwEditor:start */
+      bindingValidation: {
+        type: "string",
+        tooltip: "Trailing icon code displayed on the marker.",
+      },
+      propertyHelp: {
+        tooltip:
+          "Icon shown after the label. Used when marker type is 'Icon and Text pill'.",
       },
       /* wwEditor:end */
     },
@@ -556,6 +530,25 @@ export default {
       bindingValidation: {
         type: "string",
         tooltip: "Color of the icon on hover.",
+      },
+      /* wwEditor:end */
+    },
+    markerIconColorSelected: {
+      label: { en: "Icon color (selected)" },
+      type: "Color",
+      section: "style",
+      defaultValue: "",
+      bindable: true,
+      hidden: (content) =>
+        !["icon", "icon-text-pill"].includes(content?.markerType ?? "pin"),
+      /* wwEditor:start */
+      propertyHelp: {
+        tooltip:
+          "Icon color when a point is selected. Leave empty to keep the base color. Overridden by a point's own selected color.",
+      },
+      bindingValidation: {
+        type: "string",
+        tooltip: "Color of the icon when the point is selected.",
       },
       /* wwEditor:end */
     },
