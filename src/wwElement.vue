@@ -171,9 +171,21 @@ export default {
       return p ? [p.longitude, p.latitude] : null;
     });
 
-    // Height of the default marker (~41px, anchored at its tip). Used to lift
-    // the popup clear of the marker when it opens above the point.
-    const MARKER_LIFT = 41;
+    // How far to lift the popup so it clears the marker when opening above the
+    // point. Measured from the selected marker's actual rendered height (its
+    // element is anchored at the tip), so custom marker types — icon, pill,
+    // image — clear by their true height instead of the default pin's. Falls
+    // back to the default pin height (~41px) before a marker is measured.
+    const DEFAULT_MARKER_LIFT = 41;
+    const markerLift = ref(DEFAULT_MARKER_LIFT);
+
+    // Measure the currently selected marker's element height (the distance from
+    // its tip up to its top, since markers are anchored at the bottom/tip).
+    const measureMarkerLift = () => {
+      const entry = markersById.get(selectedPointId.value);
+      const h = entry?.marker?.getElement?.()?.offsetHeight;
+      markerLift.value = Number.isFinite(h) && h > 0 ? h : DEFAULT_MARKER_LIFT;
+    };
 
     // "top" = popup opens above the point (the default); "bottom" = below it.
     // updatePopupPlacement() flips this when there isn't room above.
@@ -195,7 +207,7 @@ export default {
       if (popupPlacement.value === "bottom") {
         return [0, gap + popupHeight.value];
       }
-      return [0, -(MARKER_LIFT + gap)];
+      return [0, -(markerLift.value + gap)];
     });
 
     // Decide whether the popup should open above (default) or below the point,
@@ -203,6 +215,7 @@ export default {
     const updatePopupPlacement = () => {
       if (!(props.content?.autoFlipPopup ?? true)) {
         popupPlacement.value = "top";
+        measureMarkerLift();
         return;
       }
       if (!map || !popupAnchorEl.value) return;
@@ -210,10 +223,11 @@ export default {
       if (!coords) return;
       const h = popupAnchorEl.value.offsetHeight || 0;
       popupHeight.value = h;
+      measureMarkerLift();
       const gap = popupGapPx();
       const pt = map.project(coords);
       const containerH = map.getContainer()?.clientHeight ?? 0;
-      const spaceAbove = pt.y - MARKER_LIFT - gap;
+      const spaceAbove = pt.y - markerLift.value - gap;
       const spaceBelow = containerH - pt.y - gap;
       // Keep the default (above) unless the popup can't fit there but does have
       // more room below — avoids flip-flopping when both sides are tight.
