@@ -486,19 +486,25 @@ export default {
 
     // Prepare an SVG element for currentColor-based coloring. Forces `fill:
     // currentColor` (rather than just stripping the attribute, which doesn't
-    // guarantee the element inherits `color`) on the root <svg> and every
-    // descendant that isn't explicitly "none"/"transparent".
+    // guarantee the element inherits `color`) on the root <svg> so any
+    // descendant without its own paint follows `color`, and rewrites every
+    // explicit `fill`/`stroke` that isn't "none"/"transparent". Handling both
+    // paints matters because outline icon families (Phosphor regular, Lucide,
+    // …) draw with `stroke` and `fill="none"`, not a solid fill.
     const prepareIconSvg = (svgEl, size, color) => {
       svgEl.style.width = `${size}px`;
       svgEl.style.height = `${size}px`;
       svgEl.style.display = "block";
       svgEl.style.color = color;
       svgEl.style.transition = "color 0.15s ease";
-      [svgEl, ...svgEl.querySelectorAll("[fill]")].forEach((el) => {
-        const val = el.getAttribute("fill");
-        if (val && val !== "none" && val !== "transparent") {
-          el.style.fill = "currentColor";
-        }
+      svgEl.style.fill = "currentColor";
+      [svgEl, ...svgEl.querySelectorAll("*")].forEach((el) => {
+        ["fill", "stroke"].forEach((prop) => {
+          const val = el.getAttribute(prop);
+          if (val && val !== "none" && val !== "transparent") {
+            el.style[prop] = "currentColor";
+          }
+        });
       });
       return svgEl;
     };
