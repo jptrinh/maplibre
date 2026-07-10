@@ -131,6 +131,34 @@ export default {
   ],
   actions: [
     {
+      action: "flyTo",
+      label: { en: "Fly to" },
+      /* wwEditor:start */
+      args: [
+        {
+          name: "latitude",
+          type: "number",
+          label: { en: "Latitude" },
+        },
+        {
+          name: "longitude",
+          type: "number",
+          label: { en: "Longitude" },
+        },
+        {
+          name: "zoom",
+          type: "number",
+          label: { en: "Zoom (optional)" },
+        },
+        {
+          name: "animate",
+          type: "boolean",
+          label: { en: "Animate" },
+        },
+      ],
+      /* wwEditor:end */
+    },
+    {
       action: "closePopup",
       label: { en: "Close popup" },
       /* wwEditor:start */
