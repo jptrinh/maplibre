@@ -76,10 +76,13 @@ export default {
         properties: [
           "pillTextColor",
           "pillTextColorHover",
+          "pillTextColorSelected",
           "pillTextSize",
           "pillTextWeight",
           "pillBgColor",
           "pillBgColorHover",
+          "pillBgColorSelected",
+          "pillScale",
           "pillPadding",
           "pillRadius",
           "pillShadow",
@@ -631,6 +634,20 @@ export default {
       },
       /* wwEditor:end */
     },
+    pillTextColorSelected: {
+      label: { en: "Pill text color (selected)" },
+      type: "Color",
+      section: "style",
+      defaultValue: "",
+      bindable: true,
+      hidden: (content) =>
+        !["text-pill", "icon-text-pill"].includes(content?.markerType ?? "pin"),
+      /* wwEditor:start */
+      propertyHelp: {
+        tooltip: "Text color when the point is selected. Leave empty to keep the base color.",
+      },
+      /* wwEditor:end */
+    },
     pillTextSize: {
       label: { en: "Pill text size" },
       type: "Number",
@@ -690,6 +707,43 @@ export default {
       propertyHelp: {
         tooltip:
           "Pill background on hover. Leave empty to keep the base background.",
+      },
+      /* wwEditor:end */
+    },
+    pillBgColorSelected: {
+      label: { en: "Pill background color (selected)" },
+      type: "Color",
+      section: "style",
+      defaultValue: "",
+      bindable: true,
+      hidden: (content) =>
+        !["text-pill", "icon-text-pill"].includes(content?.markerType ?? "pin"),
+      /* wwEditor:start */
+      propertyHelp: {
+        tooltip:
+          "Pill background when the point is selected. Leave empty to keep the base background.",
+      },
+      /* wwEditor:end */
+    },
+    pillScale: {
+      label: { en: "Pill scale (hover / selected)" },
+      type: "Number",
+      section: "style",
+      min: 1,
+      max: 2,
+      step: 0.05,
+      defaultValue: 1.1,
+      bindable: true,
+      hidden: (content) =>
+        !["text-pill", "icon-text-pill"].includes(content?.markerType ?? "pin"),
+      /* wwEditor:start */
+      bindingValidation: {
+        type: "number",
+        tooltip: "Scale factor applied to a pill when hovered or selected (1 = no scaling).",
+      },
+      propertyHelp: {
+        tooltip:
+          "How much the pill grows when hovered or selected, e.g. 1.1 = 10% larger. Set to 1 to disable. The change animates smoothly.",
       },
       /* wwEditor:end */
     },

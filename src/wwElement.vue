@@ -16,7 +16,7 @@
       v-show="isPopupVisible"
       class="maplibre-map__popup"
       @click.stop
-      @mousedown.stop
+      @mousedown="onPopupMouseDown"
       @dblclick.stop
     >
       <wwLayout
@@ -171,9 +171,21 @@ export default {
       return p ? [p.longitude, p.latitude] : null;
     });
 
-    // Height of the default marker (~41px, anchored at its tip). Used to lift
-    // the popup clear of the marker when it opens above the point.
-    const MARKER_LIFT = 41;
+    // How far to lift the popup so it clears the marker when opening above the
+    // point. Measured from the selected marker's actual rendered height (its
+    // element is anchored at the tip), so custom marker types — icon, pill,
+    // image — clear by their true height instead of the default pin's. Falls
+    // back to the default pin height (~41px) before a marker is measured.
+    const DEFAULT_MARKER_LIFT = 41;
+    const markerLift = ref(DEFAULT_MARKER_LIFT);
+
+    // Measure the currently selected marker's element height (the distance from
+    // its tip up to its top, since markers are anchored at the bottom/tip).
+    const measureMarkerLift = () => {
+      const entry = markersById.get(selectedPointId.value);
+      const h = entry?.marker?.getElement?.()?.offsetHeight;
+      markerLift.value = Number.isFinite(h) && h > 0 ? h : DEFAULT_MARKER_LIFT;
+    };
 
     // "top" = popup opens above the point (the default); "bottom" = below it.
     // updatePopupPlacement() flips this when there isn't room above.
@@ -195,7 +207,7 @@ export default {
       if (popupPlacement.value === "bottom") {
         return [0, gap + popupHeight.value];
       }
-      return [0, -(MARKER_LIFT + gap)];
+      return [0, -(markerLift.value + gap)];
     });
 
     // Decide whether the popup should open above (default) or below the point,
@@ -203,6 +215,7 @@ export default {
     const updatePopupPlacement = () => {
       if (!(props.content?.autoFlipPopup ?? true)) {
         popupPlacement.value = "top";
+        measureMarkerLift();
         return;
       }
       if (!map || !popupAnchorEl.value) return;
@@ -210,10 +223,11 @@ export default {
       if (!coords) return;
       const h = popupAnchorEl.value.offsetHeight || 0;
       popupHeight.value = h;
+      measureMarkerLift();
       const gap = popupGapPx();
       const pt = map.project(coords);
       const containerH = map.getContainer()?.clientHeight ?? 0;
-      const spaceAbove = pt.y - MARKER_LIFT - gap;
+      const spaceAbove = pt.y - markerLift.value - gap;
       const spaceBelow = containerH - pt.y - gap;
       // Keep the default (above) unless the popup can't fit there but does have
       // more room below — avoids flip-flopping when both sides are tight.
@@ -270,6 +284,19 @@ export default {
         name: "popup:open",
         event: { point: pointPayload(point) },
       });
+    };
+
+    // When the popup node is used as a MapLibre Marker element, MapLibre
+    // attaches its own `mousedown` listener to it that calls
+    // `preventDefault()` — which aborts the browser's text-selection gesture,
+    // making popup content unselectable. This template listener is attached at
+    // mount, before the popup Marker is lazily created on first open, so it
+    // runs first in bubble order; `stopImmediatePropagation` then prevents
+    // MapLibre's same-element handler from firing. We deliberately do NOT call
+    // `preventDefault` ourselves, so text selection works. It also stops the
+    // event reaching the map canvas (which would start a drag / close popup).
+    const onPopupMouseDown = (e) => {
+      e.stopImmediatePropagation();
     };
 
     const closePopup = () => {
@@ -490,8 +517,11 @@ export default {
     // Apply the shared pill styling (background/text/padding/radius/shadow)
     // used by both the text-pill and icon-text-pill marker types.
     const applyPillStyle = (el, point) => {
+      const isSelected = point.id === selectedPointId.value;
       const baseBg = point.color || props.content?.pillBgColor || "#111827";
       const baseText = props.content?.pillTextColor || "#FFFFFF";
+      const effectiveBg = (isSelected && props.content?.pillBgColorSelected) || baseBg;
+      const effectiveText = (isSelected && props.content?.pillTextColorSelected) || baseText;
 
       el.style.display = "inline-flex";
       el.style.alignItems = "center";
@@ -499,36 +529,67 @@ export default {
       el.style.boxSizing = "border-box";
       el.style.whiteSpace = "nowrap";
       el.style.lineHeight = "1";
-      el.style.color = baseText;
+      el.style.color = effectiveText;
       el.style.fontSize = `${Number(props.content?.pillTextSize ?? 14)}px`;
       el.style.fontWeight = props.content?.pillTextWeight || "600";
-      el.style.background = baseBg;
+      el.style.background = effectiveBg;
       el.style.padding = props.content?.pillPadding || "6px 12px";
       el.style.borderRadius = props.content?.pillRadius || "999px";
       el.style.boxShadow =
         props.content?.pillShadow ?? "0 1px 4px rgba(0, 0, 0, 0.25)";
 
-      return { baseBg, baseText };
+      // Resting scale: a selected pill sits enlarged; everything animates via
+      // the transition below. Pills are bottom-anchored, so scaling from the
+      // bottom keeps the tip glued to the point. The transform lives on this
+      // inner pill element (not the MapLibre marker wrapper, whose transform
+      // MapLibre overwrites on every move) — see buildPillElement.
+      const scale = Number(props.content?.pillScale ?? 1);
+      const restingScale = isSelected && scale > 1 ? scale : 1;
+      el.style.transformOrigin = "center bottom";
+      el.style.transition =
+        "background-color 0.15s ease, color 0.15s ease, transform 0.15s ease";
+      el.style.transform = `scale(${restingScale})`;
+
+      return { baseBg: effectiveBg, baseText: effectiveText };
     };
 
     // Wire the shared hover behavior (background/text/icon color swap) for
-    // pill-style markers.
-    const wirePillHover = (el, baseBg, baseText, iconHover = {}) => {
+    // pill-style markers. Selected state takes priority — hover is a no-op on
+    // a selected pill so the selected colors are never overridden.
+    const wirePillHover = (el, baseBg, baseText, iconHover = {}, point = null) => {
       const hoverBg = props.content?.pillBgColorHover;
       const hoverText = props.content?.pillTextColorHover;
       const { iconColor, iconColorHover } = iconHover;
       const iconSvgEls = (iconHover.iconSvgEls || []).filter(Boolean);
+      const scale = Number(props.content?.pillScale ?? 1);
+      const hasScale = Number.isFinite(scale) && scale > 1;
 
-      if (!hoverBg && !hoverText && !iconColorHover) return;
+      if (!hoverBg && !hoverText && !iconColorHover && !hasScale) return;
 
-      el.style.transition = "background-color 0.15s ease, color 0.15s ease";
+      // Selected colors take priority: hover must not override them.
+      const selectedColorsActive = () =>
+        point !== null &&
+        (props.content?.pillBgColorSelected || props.content?.pillTextColorSelected) &&
+        point.id === selectedPointId.value;
+
+      // Whether this point is the selected one (used for the resting scale a
+      // selected pill keeps once the pointer leaves it).
+      const isSelected = () => point !== null && point.id === selectedPointId.value;
+
+      // The transition (incl. transform) is set once in applyPillStyle, so the
+      // background/color/scale changes here all animate smoothly.
       el.addEventListener("mouseenter", () => {
+        if (hasScale) el.style.transform = `scale(${scale})`;
+        if (selectedColorsActive()) return;
         if (hoverBg) el.style.background = hoverBg;
         if (hoverText) el.style.color = hoverText;
         if (iconColorHover)
           iconSvgEls.forEach((icon) => (icon.style.color = iconColorHover));
       });
       el.addEventListener("mouseleave", () => {
+        // A selected pill stays enlarged; otherwise it settles back to 1.
+        if (hasScale)
+          el.style.transform = isSelected() ? `scale(${scale})` : "scale(1)";
         el.style.background = baseBg;
         el.style.color = baseText;
         iconSvgEls.forEach((icon) => (icon.style.color = iconColor));
@@ -538,12 +599,18 @@ export default {
     // Build a rounded "pill" element showing the point's label.
     const buildPillElement = (point) => {
       const doc = wwLib.getFrontDocument();
+      // The outer wrapper is the MapLibre marker element — MapLibre owns its
+      // transform to position it. The inner pill carries the visual styling and
+      // the hover/selected scale, so our scale transform is never overwritten
+      // by MapLibre's positioning translate on the wrapper.
+      const wrapper = doc.createElement("div");
       const el = doc.createElement("div");
+      wrapper.appendChild(el);
       const { baseBg, baseText } = applyPillStyle(el, point);
 
       el.textContent = point.label ?? "";
-      wirePillHover(el, baseBg, baseText);
-      return el;
+      wirePillHover(el, baseBg, baseText, {}, point);
+      return wrapper;
     };
 
     // Prepare an SVG element for currentColor-based coloring. Forces `fill:
@@ -610,7 +677,11 @@ export default {
     // Build a pill element with an icon prepended to the label text.
     const buildIconPillElement = (point) => {
       const doc = wwLib.getFrontDocument();
+      // See buildPillElement: outer wrapper is positioned by MapLibre, inner
+      // pill carries the styling + scale transform.
+      const wrapper = doc.createElement("div");
       const el = doc.createElement("div");
+      wrapper.appendChild(el);
       const { baseBg, baseText } = applyPillStyle(el, point);
       const iconSize = Number(props.content?.markerIconSize ?? 20);
       const iconColor = iconColorForPoint(point);
@@ -640,8 +711,8 @@ export default {
         iconSvgEls: [leadingIconEl, trailingIconEl],
         iconColor,
         iconColorHover,
-      });
-      return el;
+      }, point);
+      return wrapper;
     };
 
     // `forceRebuild` is used when a global appearance setting changes (marker
@@ -697,6 +768,19 @@ export default {
           marker.remove();
           markersById.delete(id);
         }
+      });
+
+      applyMarkerZIndex();
+    };
+
+    // Lift the selected marker above all others so it's never obscured by
+    // neighbouring pills. MapLibre stacks markers by DOM order, so an explicit
+    // z-index on the selected element is needed to bring it to the front.
+    const applyMarkerZIndex = () => {
+      markersById.forEach(({ marker }, id) => {
+        const el = marker.getElement();
+        if (!el) return;
+        el.style.zIndex = id === selectedPointId.value ? "1" : "";
       });
     };
 
@@ -962,6 +1046,9 @@ export default {
         props.content?.pillTextWeight,
         props.content?.pillBgColor,
         props.content?.pillBgColorHover,
+        props.content?.pillBgColorSelected,
+        props.content?.pillTextColorSelected,
+        props.content?.pillScale,
         props.content?.pillPadding,
         props.content?.pillRadius,
         props.content?.pillShadow,
@@ -987,13 +1074,14 @@ export default {
       if (isPopupVisible.value && !coords) closePopup();
     });
 
-    // Rebuild markers when the selection changes so the per-point selected
-    // icon color is applied to the newly selected point and cleared elsewhere.
-    // Only icon-based markers vary with selection, so skip the rebuild for the
-    // pin/image/text-pill types whose appearance never depends on it.
+    // Rebuild markers when the selection changes so per-point selected colors
+    // are applied to the newly selected point and cleared elsewhere.
     watch(selectedPointId, () => {
-      if (["icon", "icon-text-pill"].includes(props.content?.markerType ?? "pin")) {
-        renderMarkers(true);
+      const type = props.content?.markerType ?? "pin";
+      if (["icon", "icon-text-pill", "text-pill"].includes(type)) {
+        renderMarkers(true); // rebuild applies selected colors + z-index
+      } else {
+        applyMarkerZIndex(); // pin/image markers just need the z-index bump
       }
     });
 
@@ -1055,6 +1143,8 @@ export default {
       isEditing,
       // Exposed as WeWeb component actions (see `actions` in ww-config.js).
       flyTo,
+      onPopupMouseDown,
+      // Exposed as a WeWeb component action (see `actions` in ww-config.js).
       closePopup,
     };
   },
@@ -1080,7 +1170,15 @@ export default {
   // positions it; we only ensure it can hold dropped WeWeb content.
   &__popup {
     z-index: 2;
-    cursor: default;
+    // MapLibre's interactive canvas container sets `cursor: grab` and
+    // `user-select: none`; both are inherited CSS properties, so without an
+    // explicit reset here the popup's contents can't be selected and always
+    // show the grab/pointer cursor. Resetting to `auto` lets the browser pick
+    // the right cursor per element (text cursor over text, etc.) and makes the
+    // content selectable, matching normal page behavior.
+    cursor: auto;
+    user-select: text;
+    -webkit-user-select: text;
   }
 
   &__popup-layout {
