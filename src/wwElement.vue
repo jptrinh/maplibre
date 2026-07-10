@@ -16,7 +16,7 @@
       v-show="isPopupVisible"
       class="maplibre-map__popup"
       @click.stop
-      @mousedown.stop
+      @mousedown="onPopupMouseDown"
       @dblclick.stop
     >
       <wwLayout
@@ -284,6 +284,19 @@ export default {
         name: "popup:open",
         event: { point: pointPayload(point) },
       });
+    };
+
+    // When the popup node is used as a MapLibre Marker element, MapLibre
+    // attaches its own `mousedown` listener to it that calls
+    // `preventDefault()` — which aborts the browser's text-selection gesture,
+    // making popup content unselectable. This template listener is attached at
+    // mount, before the popup Marker is lazily created on first open, so it
+    // runs first in bubble order; `stopImmediatePropagation` then prevents
+    // MapLibre's same-element handler from firing. We deliberately do NOT call
+    // `preventDefault` ourselves, so text selection works. It also stops the
+    // event reaching the map canvas (which would start a drag / close popup).
+    const onPopupMouseDown = (e) => {
+      e.stopImmediatePropagation();
     };
 
     const closePopup = () => {
@@ -1113,6 +1126,7 @@ export default {
       isMapLoaded,
       selectedPoint,
       isEditing,
+      onPopupMouseDown,
       // Exposed as a WeWeb component action (see `actions` in ww-config.js).
       closePopup,
     };
@@ -1139,7 +1153,15 @@ export default {
   // positions it; we only ensure it can hold dropped WeWeb content.
   &__popup {
     z-index: 2;
-    cursor: default;
+    // MapLibre's interactive canvas container sets `cursor: grab` and
+    // `user-select: none`; both are inherited CSS properties, so without an
+    // explicit reset here the popup's contents can't be selected and always
+    // show the grab/pointer cursor. Resetting to `auto` lets the browser pick
+    // the right cursor per element (text cursor over text, etc.) and makes the
+    // content selectable, matching normal page behavior.
+    cursor: auto;
+    user-select: text;
+    -webkit-user-select: text;
   }
 
   &__popup-layout {
