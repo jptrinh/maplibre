@@ -171,11 +171,55 @@ export default {
       return p ? [p.longitude, p.latitude] : null;
     });
 
-    // Lift the popup above the default marker (~41px tall, anchored at its tip).
-    const popupOffset = computed(() => {
+    // Height of the default marker (~41px, anchored at its tip). Used to lift
+    // the popup clear of the marker when it opens above the point.
+    const MARKER_LIFT = 41;
+
+    // "top" = popup opens above the point (the default); "bottom" = below it.
+    // updatePopupPlacement() flips this when there isn't room above.
+    const popupPlacement = ref("top");
+    // Measured popup height, needed to offset a downward-opening popup so its
+    // top edge (not its bottom) sits just under the marker tip.
+    const popupHeight = ref(0);
+
+    const popupGapPx = () => {
       const gap = Number(props.content?.popupGap ?? 8);
-      return [0, -(41 + (Number.isFinite(gap) ? gap : 8))];
+      return Number.isFinite(gap) ? gap : 8;
+    };
+
+    // The marker keeps anchor "bottom"; we only change the offset. Above the
+    // point we push the box up past the marker; below it we push the whole box
+    // down so its top edge clears the point by `gap`.
+    const popupOffset = computed(() => {
+      const gap = popupGapPx();
+      if (popupPlacement.value === "bottom") {
+        return [0, gap + popupHeight.value];
+      }
+      return [0, -(MARKER_LIFT + gap)];
     });
+
+    // Decide whether the popup should open above (default) or below the point,
+    // based on the room available on each side of it within the map viewport.
+    const updatePopupPlacement = () => {
+      if (!(props.content?.autoFlipPopup ?? true)) {
+        popupPlacement.value = "top";
+        return;
+      }
+      if (!map || !popupAnchorEl.value) return;
+      const coords = selectedCoords.value;
+      if (!coords) return;
+      const h = popupAnchorEl.value.offsetHeight || 0;
+      popupHeight.value = h;
+      const gap = popupGapPx();
+      const pt = map.project(coords);
+      const containerH = map.getContainer()?.clientHeight ?? 0;
+      const spaceAbove = pt.y - MARKER_LIFT - gap;
+      const spaceBelow = containerH - pt.y - gap;
+      // Keep the default (above) unless the popup can't fit there but does have
+      // more room below — avoids flip-flopping when both sides are tight.
+      popupPlacement.value =
+        spaceAbove < h && spaceBelow > spaceAbove ? "bottom" : "top";
+    };
 
     // Shape exposed to trigger events / selectedPoint: the Formula-resolved
     // fields (what the user configured via the mapping formulas) plus the
@@ -219,6 +263,9 @@ export default {
       if (!marker) return;
       if (selectedCoords.value) marker.setLngLat(selectedCoords.value);
       isPopupVisible.value = true;
+      // Placement depends on the rendered popup height, so measure after Vue
+      // has made it visible in the DOM.
+      nextTick(updatePopupPlacement);
       emit("trigger-event", {
         name: "popup:open",
         event: { point: pointPayload(point) },
@@ -806,6 +853,12 @@ export default {
         closePopup();
       });
 
+      // Re-evaluate popup placement as the point moves across the viewport
+      // (pan/zoom/rotate), so it flips when the point nears the top edge.
+      map.on("move", () => {
+        if (isPopupVisible.value) updatePopupPlacement();
+      });
+
       map.on("moveend", () => {
         const c = map.getCenter();
         const z = map.getZoom();
@@ -821,6 +874,7 @@ export default {
       if (win?.ResizeObserver) {
         resizeObserver = new win.ResizeObserver(() => {
           map?.resize();
+          if (isPopupVisible.value) updatePopupPlacement();
         });
         resizeObserver.observe(mapContainer.value);
       }
