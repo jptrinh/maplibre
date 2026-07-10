@@ -76,10 +76,12 @@ export default {
         properties: [
           "pillTextColor",
           "pillTextColorHover",
+          "pillTextColorSelected",
           "pillTextSize",
           "pillTextWeight",
           "pillBgColor",
           "pillBgColorHover",
+          "pillBgColorSelected",
           "pillPadding",
           "pillRadius",
           "pillShadow",
@@ -603,6 +605,20 @@ export default {
       },
       /* wwEditor:end */
     },
+    pillTextColorSelected: {
+      label: { en: "Pill text color (selected)" },
+      type: "Color",
+      section: "style",
+      defaultValue: "",
+      bindable: true,
+      hidden: (content) =>
+        !["text-pill", "icon-text-pill"].includes(content?.markerType ?? "pin"),
+      /* wwEditor:start */
+      propertyHelp: {
+        tooltip: "Text color when the point is selected. Leave empty to keep the base color.",
+      },
+      /* wwEditor:end */
+    },
     pillTextSize: {
       label: { en: "Pill text size" },
       type: "Number",
@@ -662,6 +678,21 @@ export default {
       propertyHelp: {
         tooltip:
           "Pill background on hover. Leave empty to keep the base background.",
+      },
+      /* wwEditor:end */
+    },
+    pillBgColorSelected: {
+      label: { en: "Pill background color (selected)" },
+      type: "Color",
+      section: "style",
+      defaultValue: "",
+      bindable: true,
+      hidden: (content) =>
+        !["text-pill", "icon-text-pill"].includes(content?.markerType ?? "pin"),
+      /* wwEditor:start */
+      propertyHelp: {
+        tooltip:
+          "Pill background when the point is selected. Leave empty to keep the base background.",
       },
       /* wwEditor:end */
     },

@@ -475,8 +475,11 @@ export default {
     // Apply the shared pill styling (background/text/padding/radius/shadow)
     // used by both the text-pill and icon-text-pill marker types.
     const applyPillStyle = (el, point) => {
+      const isSelected = point.id === selectedPointId.value;
       const baseBg = point.color || props.content?.pillBgColor || "#111827";
       const baseText = props.content?.pillTextColor || "#FFFFFF";
+      const effectiveBg = (isSelected && props.content?.pillBgColorSelected) || baseBg;
+      const effectiveText = (isSelected && props.content?.pillTextColorSelected) || baseText;
 
       el.style.display = "inline-flex";
       el.style.alignItems = "center";
@@ -484,16 +487,16 @@ export default {
       el.style.boxSizing = "border-box";
       el.style.whiteSpace = "nowrap";
       el.style.lineHeight = "1";
-      el.style.color = baseText;
+      el.style.color = effectiveText;
       el.style.fontSize = `${Number(props.content?.pillTextSize ?? 14)}px`;
       el.style.fontWeight = props.content?.pillTextWeight || "600";
-      el.style.background = baseBg;
+      el.style.background = effectiveBg;
       el.style.padding = props.content?.pillPadding || "6px 12px";
       el.style.borderRadius = props.content?.pillRadius || "999px";
       el.style.boxShadow =
         props.content?.pillShadow ?? "0 1px 4px rgba(0, 0, 0, 0.25)";
 
-      return { baseBg, baseText };
+      return { baseBg: effectiveBg, baseText: effectiveText };
     };
 
     // Wire the shared hover behavior (background/text/icon color swap) for
@@ -947,6 +950,8 @@ export default {
         props.content?.pillTextWeight,
         props.content?.pillBgColor,
         props.content?.pillBgColorHover,
+        props.content?.pillBgColorSelected,
+        props.content?.pillTextColorSelected,
         props.content?.pillPadding,
         props.content?.pillRadius,
         props.content?.pillShadow,
@@ -972,12 +977,11 @@ export default {
       if (isPopupVisible.value && !coords) closePopup();
     });
 
-    // Rebuild markers when the selection changes so the per-point selected
-    // icon color is applied to the newly selected point and cleared elsewhere.
-    // Only icon-based markers vary with selection, so skip the rebuild for the
-    // pin/image/text-pill types whose appearance never depends on it.
+    // Rebuild markers when the selection changes so per-point selected colors
+    // are applied to the newly selected point and cleared elsewhere.
     watch(selectedPointId, () => {
-      if (["icon", "icon-text-pill"].includes(props.content?.markerType ?? "pin")) {
+      const type = props.content?.markerType ?? "pin";
+      if (["icon", "icon-text-pill", "text-pill"].includes(type)) {
         renderMarkers(true);
       }
     });
