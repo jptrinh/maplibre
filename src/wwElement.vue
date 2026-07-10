@@ -707,6 +707,19 @@ export default {
           markersById.delete(id);
         }
       });
+
+      applyMarkerZIndex();
+    };
+
+    // Lift the selected marker above all others so it's never obscured by
+    // neighbouring pills. MapLibre stacks markers by DOM order, so an explicit
+    // z-index on the selected element is needed to bring it to the front.
+    const applyMarkerZIndex = () => {
+      markersById.forEach(({ marker }, id) => {
+        const el = marker.getElement();
+        if (!el) return;
+        el.style.zIndex = id === selectedPointId.value ? "1" : "";
+      });
     };
 
     // Wire click / hover events on a marker element for a given point.
@@ -1003,7 +1016,9 @@ export default {
     watch(selectedPointId, () => {
       const type = props.content?.markerType ?? "pin";
       if (["icon", "icon-text-pill", "text-pill"].includes(type)) {
-        renderMarkers(true);
+        renderMarkers(true); // rebuild applies selected colors + z-index
+      } else {
+        applyMarkerZIndex(); // pin/image markers just need the z-index bump
       }
     });
 
