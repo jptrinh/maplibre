@@ -59,6 +59,9 @@ export default {
     let attributionControl = null;
     const isPopupVisible = ref(false);
     const selectedPointId = ref(null);
+    // Point currently under the pointer, lifted above its neighbours the same
+    // way the selected one is (see applyMarkerZIndex).
+    const hoveredPointId = ref(null);
     const resolvedIconSvg = ref("");
     const resolvedIconSvgTrailing = ref("");
     const iconApi = wwLib?.useIcons?.();
@@ -773,14 +776,20 @@ export default {
       applyMarkerZIndex();
     };
 
-    // Lift the selected marker above all others so it's never obscured by
-    // neighbouring pills. MapLibre stacks markers by DOM order, so an explicit
-    // z-index on the selected element is needed to bring it to the front.
+    // Lift the selected (and currently hovered) marker above all others so it's
+    // never obscured by neighbouring pills. MapLibre stacks markers by DOM
+    // order, so an explicit z-index is needed to bring one to the front. Hover
+    // sits above selection so hovering any marker brings it fully into view.
+    const zIndexForMarker = (id) => {
+      if (id === hoveredPointId.value) return "2";
+      if (id === selectedPointId.value) return "1";
+      return "";
+    };
     const applyMarkerZIndex = () => {
       markersById.forEach(({ marker }, id) => {
         const el = marker.getElement();
         if (!el) return;
-        el.style.zIndex = id === selectedPointId.value ? "1" : "";
+        el.style.zIndex = zIndexForMarker(id);
       });
     };
 
@@ -796,12 +805,18 @@ export default {
         openPopup(point);
       });
       el.addEventListener("mouseenter", () => {
+        hoveredPointId.value = point.id;
+        applyMarkerZIndex();
         emit("trigger-event", {
           name: "marker:mouseenter",
           event: { point: pointPayload(point) },
         });
       });
       el.addEventListener("mouseleave", () => {
+        if (hoveredPointId.value === point.id) {
+          hoveredPointId.value = null;
+          applyMarkerZIndex();
+        }
         emit("trigger-event", {
           name: "marker:mouseleave",
           event: { point: pointPayload(point) },
