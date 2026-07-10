@@ -279,6 +279,21 @@ export default {
       emit("trigger-event", { name: "popup:close", event: {} });
     };
 
+    // Component action (see `actions` in ww-config.js). Moves the map to the
+    // given coordinates, optionally changing zoom and animating the transition.
+    // Missing/invalid zoom keeps the current zoom; lng/lat are required.
+    const flyTo = (latitude, longitude, zoom, animate = true) => {
+      if (!map) return;
+      const lat = Number(latitude);
+      const lng = Number(longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      const target = { center: [lng, lat] };
+      const z = Number(zoom);
+      if (Number.isFinite(z)) target.zoom = z;
+      if (animate) map.flyTo(target);
+      else map.jumpTo(target);
+    };
+
     // Editor only: force the popup open on the first point so it can be
     // designed. Pans to the point so the popup is actually in view. No-op in
     // the published app (isEditing is false there).
@@ -1038,7 +1053,8 @@ export default {
       isMapLoaded,
       selectedPoint,
       isEditing,
-      // Exposed as a WeWeb component action (see `actions` in ww-config.js).
+      // Exposed as WeWeb component actions (see `actions` in ww-config.js).
+      flyTo,
       closePopup,
     };
   },
