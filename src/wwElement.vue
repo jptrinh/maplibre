@@ -510,6 +510,18 @@ export default {
       el.style.boxShadow =
         props.content?.pillShadow ?? "0 1px 4px rgba(0, 0, 0, 0.25)";
 
+      // Resting scale: a selected pill sits enlarged; everything animates via
+      // the transition below. Pills are bottom-anchored, so scaling from the
+      // bottom keeps the tip glued to the point. The transform lives on this
+      // inner pill element (not the MapLibre marker wrapper, whose transform
+      // MapLibre overwrites on every move) — see buildPillElement.
+      const scale = Number(props.content?.pillScale ?? 1);
+      const restingScale = isSelected && scale > 1 ? scale : 1;
+      el.style.transformOrigin = "center bottom";
+      el.style.transition =
+        "background-color 0.15s ease, color 0.15s ease, transform 0.15s ease";
+      el.style.transform = `scale(${restingScale})`;
+
       return { baseBg: effectiveBg, baseText: effectiveText };
     };
 
@@ -521,23 +533,35 @@ export default {
       const hoverText = props.content?.pillTextColorHover;
       const { iconColor, iconColorHover } = iconHover;
       const iconSvgEls = (iconHover.iconSvgEls || []).filter(Boolean);
+      const scale = Number(props.content?.pillScale ?? 1);
+      const hasScale = Number.isFinite(scale) && scale > 1;
 
-      if (!hoverBg && !hoverText && !iconColorHover) return;
+      if (!hoverBg && !hoverText && !iconColorHover && !hasScale) return;
 
-      const isSelected = () =>
+      // Selected colors take priority: hover must not override them.
+      const selectedColorsActive = () =>
         point !== null &&
         (props.content?.pillBgColorSelected || props.content?.pillTextColorSelected) &&
         point.id === selectedPointId.value;
 
-      el.style.transition = "background-color 0.15s ease, color 0.15s ease";
+      // Whether this point is the selected one (used for the resting scale a
+      // selected pill keeps once the pointer leaves it).
+      const isSelected = () => point !== null && point.id === selectedPointId.value;
+
+      // The transition (incl. transform) is set once in applyPillStyle, so the
+      // background/color/scale changes here all animate smoothly.
       el.addEventListener("mouseenter", () => {
-        if (isSelected()) return;
+        if (hasScale) el.style.transform = `scale(${scale})`;
+        if (selectedColorsActive()) return;
         if (hoverBg) el.style.background = hoverBg;
         if (hoverText) el.style.color = hoverText;
         if (iconColorHover)
           iconSvgEls.forEach((icon) => (icon.style.color = iconColorHover));
       });
       el.addEventListener("mouseleave", () => {
+        // A selected pill stays enlarged; otherwise it settles back to 1.
+        if (hasScale)
+          el.style.transform = isSelected() ? `scale(${scale})` : "scale(1)";
         el.style.background = baseBg;
         el.style.color = baseText;
         iconSvgEls.forEach((icon) => (icon.style.color = iconColor));
@@ -547,12 +571,18 @@ export default {
     // Build a rounded "pill" element showing the point's label.
     const buildPillElement = (point) => {
       const doc = wwLib.getFrontDocument();
+      // The outer wrapper is the MapLibre marker element — MapLibre owns its
+      // transform to position it. The inner pill carries the visual styling and
+      // the hover/selected scale, so our scale transform is never overwritten
+      // by MapLibre's positioning translate on the wrapper.
+      const wrapper = doc.createElement("div");
       const el = doc.createElement("div");
+      wrapper.appendChild(el);
       const { baseBg, baseText } = applyPillStyle(el, point);
 
       el.textContent = point.label ?? "";
       wirePillHover(el, baseBg, baseText, {}, point);
-      return el;
+      return wrapper;
     };
 
     // Prepare an SVG element for currentColor-based coloring. Forces `fill:
@@ -619,7 +649,11 @@ export default {
     // Build a pill element with an icon prepended to the label text.
     const buildIconPillElement = (point) => {
       const doc = wwLib.getFrontDocument();
+      // See buildPillElement: outer wrapper is positioned by MapLibre, inner
+      // pill carries the styling + scale transform.
+      const wrapper = doc.createElement("div");
       const el = doc.createElement("div");
+      wrapper.appendChild(el);
       const { baseBg, baseText } = applyPillStyle(el, point);
       const iconSize = Number(props.content?.markerIconSize ?? 20);
       const iconColor = iconColorForPoint(point);
@@ -650,7 +684,7 @@ export default {
         iconColor,
         iconColorHover,
       }, point);
-      return el;
+      return wrapper;
     };
 
     // `forceRebuild` is used when a global appearance setting changes (marker
@@ -986,6 +1020,7 @@ export default {
         props.content?.pillBgColorHover,
         props.content?.pillBgColorSelected,
         props.content?.pillTextColorSelected,
+        props.content?.pillScale,
         props.content?.pillPadding,
         props.content?.pillRadius,
         props.content?.pillShadow,
