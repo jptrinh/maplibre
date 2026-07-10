@@ -126,6 +126,15 @@ export default {
       event: {},
     },
   ],
+  actions: [
+    {
+      action: "closePopup",
+      label: { en: "Close popup" },
+      /* wwEditor:start */
+      args: [],
+      /* wwEditor:end */
+    },
+  ],
   properties: {
     // ----- Map setup -----
     mapStyle: {

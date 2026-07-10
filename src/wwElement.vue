@@ -978,6 +978,8 @@ export default {
       isMapLoaded,
       selectedPoint,
       isEditing,
+      // Exposed as a WeWeb component action (see `actions` in ww-config.js).
+      closePopup,
     };
   },
 };
