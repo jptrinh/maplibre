@@ -55,7 +55,7 @@ export default {
       {
         label: "Popup",
         isCollapsible: true,
-        properties: ["showPopups", "forcePopupInEditor"],
+        properties: ["showPopups", "autoFlipPopup", "forcePopupInEditor"],
       },
     ],
     customStylePropertiesOrder: [
@@ -740,6 +740,20 @@ export default {
       propertyHelp: {
         tooltip:
           "When on, clicking a marker opens the popup (built in the dropzone below) anchored to that point. The clicked point's data is exposed as the 'selectedPoint' component variable. Clicking the map closes it.",
+      },
+      /* wwEditor:end */
+    },
+    autoFlipPopup: {
+      label: { en: "Flip popup to fit" },
+      type: "OnOff",
+      section: "settings",
+      defaultValue: true,
+      bindable: true,
+      hidden: (content) => !(content?.showPopups ?? true),
+      /* wwEditor:start */
+      propertyHelp: {
+        tooltip:
+          "When on, the popup opens below the point instead of above it when there isn't enough room above (e.g. the point is near the top of the map). Turn off to always open above.",
       },
       /* wwEditor:end */
     },
