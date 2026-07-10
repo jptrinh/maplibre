@@ -514,8 +514,9 @@ export default {
     };
 
     // Wire the shared hover behavior (background/text/icon color swap) for
-    // pill-style markers.
-    const wirePillHover = (el, baseBg, baseText, iconHover = {}) => {
+    // pill-style markers. Selected state takes priority — hover is a no-op on
+    // a selected pill so the selected colors are never overridden.
+    const wirePillHover = (el, baseBg, baseText, iconHover = {}, point = null) => {
       const hoverBg = props.content?.pillBgColorHover;
       const hoverText = props.content?.pillTextColorHover;
       const { iconColor, iconColorHover } = iconHover;
@@ -523,8 +524,14 @@ export default {
 
       if (!hoverBg && !hoverText && !iconColorHover) return;
 
+      const isSelected = () =>
+        point !== null &&
+        (props.content?.pillBgColorSelected || props.content?.pillTextColorSelected) &&
+        point.id === selectedPointId.value;
+
       el.style.transition = "background-color 0.15s ease, color 0.15s ease";
       el.addEventListener("mouseenter", () => {
+        if (isSelected()) return;
         if (hoverBg) el.style.background = hoverBg;
         if (hoverText) el.style.color = hoverText;
         if (iconColorHover)
@@ -544,7 +551,7 @@ export default {
       const { baseBg, baseText } = applyPillStyle(el, point);
 
       el.textContent = point.label ?? "";
-      wirePillHover(el, baseBg, baseText);
+      wirePillHover(el, baseBg, baseText, {}, point);
       return el;
     };
 
@@ -642,7 +649,7 @@ export default {
         iconSvgEls: [leadingIconEl, trailingIconEl],
         iconColor,
         iconColorHover,
-      });
+      }, point);
       return el;
     };
 
