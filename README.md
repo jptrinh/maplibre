@@ -17,16 +17,26 @@ points as colored pin markers with clickable popups.
   - **Image** — a custom image: global "Default marker image" and/or per-point "Image URL"
     (a point's image overrides the default); control width/height and anchor.
   - **Text pill** — a rounded badge showing the point's label, with style props for the text
-    (color, size, weight) and the pill (background — overridden by a point's `color` — padding,
-    and radius).
+    (color, size, weight) and the pill (background, padding, radius, shadow), plus separate
+    colors/scale for hover and selected states — a point's `color` overrides the base
+    background but not the hover/selected colors.
+  - **Icon** / **Icon and Text pill** — a leading and/or trailing system icon (each toggleable),
+    with size, color, hover color, selected color, and gap controls; can be shown alone or
+    combined with the text pill.
+- **Hover & selected states** — hovering or selecting a marker raises it above the others,
+  and text pills / icons support distinct colors (and pill scale) for hover vs. selected,
+  independent of the base/point color.
 - **Dropzone popup** — clicking a pin opens a popup whose content you build with your own WeWeb
   elements (dropped into the popup dropzone). MapLibre keeps it anchored to the point on
-  zoom / drag / rotate. Bind the popup content to the `selectedPoint` variable. Clicking the map
-  closes it. Toggle with "Open popup on marker click".
+  zoom / drag / rotate, flips above/below automatically when there isn't room, and its content
+  is selectable/text-cursor aware. Bind the popup content to the `selectedPoint` variable.
+  Clicking the map closes it. Toggle with "Open popup on marker click".
 - **Optional controls** — navigation, geolocate, scroll-to-zoom, attribution (all toggleable).
 - **Internal variables** — `mapCenter`, `mapZoom`, `isMapLoaded`, `selectedPoint`.
 - **Trigger events** — `map:load`, `map:click`, `map:move`, `marker:click`,
   `marker:mouseenter`, `marker:mouseleave`, `popup:open`, `popup:close`.
+- **Component actions** — `Fly to` (animate the map to a lat/lng/zoom), `Select point`,
+  `Hover point`, `Unhover point`, `Close popup` — trigger these from your own WeWeb workflows.
 
 ## Usage notes
 
