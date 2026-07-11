@@ -131,8 +131,14 @@ export default {
             resolveMappingFormula?.(formula, item) ?? item?.[key] ?? dflt;
           const c = props.content;
 
+          // Prefer the mapped ID field, then the row's own id/uid, then the
+          // array index. Whatever this resolves to is what the selectPoint /
+          // hoverPoint actions match against (via findPointById).
+          const rawId =
+            field(c?.pointsIdFormula, "id") ?? item?.uid ?? index;
+
           return {
-            id: `point-${item?.id ?? item?.uid ?? index}`,
+            id: `point-${rawId}`,
             latitude: Number(field(c?.pointsLatitudeFormula, "latitude")),
             longitude: Number(field(c?.pointsLongitudeFormula, "longitude")),
             label: field(c?.pointsLabelFormula, "label", ""),
@@ -322,6 +328,62 @@ export default {
       if (Number.isFinite(z)) target.zoom = z;
       if (animate) map.flyTo(target);
       else map.jumpTo(target);
+    };
+
+    // Resolve a user-supplied id to a processed point. `p.id` is the canonical
+    // `point-${rawId}` built from the mapped ID field (see processedPoints), so
+    // callers can pass either that raw id value or the composed marker id. Used
+    // by the selectPoint / hoverPoint component actions.
+    const findPointById = (id) => {
+      if (id === null || id === undefined || id === "") return null;
+      const key = String(id);
+      return (
+        processedPoints.value.find(
+          (p) => p.id === key || p.id === `point-${key}`
+        ) ?? null
+      );
+    };
+
+    // Component action (see `actions` in ww-config.js). Selects the point whose
+    // id matches the given value, highlighting its marker and opening its popup
+    // exactly as a user click would. No-op if nothing matches.
+    const selectPoint = (id) => {
+      const point = findPointById(id);
+      if (point) openPopup(point);
+    };
+
+    // Dispatch a synthetic mouse event to a marker so it reacts exactly like a
+    // real pointer hover. Hover is wired across two elements — the outer marker
+    // element (z-index lift + hover trigger events) and, for pills, the inner
+    // styled element (colour / scale swap) — and mouseenter/mouseleave don't
+    // bubble, so we dispatch to both. An icon marker's svg child carries no
+    // listener, so nothing double-fires.
+    const dispatchMarkerHover = (pointId, type) => {
+      const el = markersById.get(pointId)?.marker.getElement();
+      if (!el) return;
+      const win = el.ownerDocument?.defaultView || window;
+      for (const target of [el, el.firstElementChild]) {
+        target?.dispatchEvent(new win.MouseEvent(type, { bubbles: false }));
+      }
+    };
+
+    // Component actions (see `actions` in ww-config.js). Drive a marker's hover
+    // state from outside the map — e.g. hovering a card in a list beside the
+    // map. hoverPoint enters the hover (leaving any other hovered marker first
+    // so only one is hovered at a time); unhoverPoint leaves it. Called with no
+    // id (or a non-matching one), unhoverPoint clears whatever is hovered.
+    const hoverPoint = (id) => {
+      const point = findPointById(id);
+      if (!point) return;
+      if (hoveredPointId.value && hoveredPointId.value !== point.id) {
+        dispatchMarkerHover(hoveredPointId.value, "mouseleave");
+      }
+      dispatchMarkerHover(point.id, "mouseenter");
+    };
+
+    const unhoverPoint = (id) => {
+      const pointId = findPointById(id)?.id ?? hoveredPointId.value;
+      if (pointId) dispatchMarkerHover(pointId, "mouseleave");
     };
 
     // Editor only: force the popup open on the first point so it can be
@@ -1158,6 +1220,9 @@ export default {
       isEditing,
       // Exposed as WeWeb component actions (see `actions` in ww-config.js).
       flyTo,
+      selectPoint,
+      hoverPoint,
+      unhoverPoint,
       onPopupMouseDown,
       // Exposed as a WeWeb component action (see `actions` in ww-config.js).
       closePopup,

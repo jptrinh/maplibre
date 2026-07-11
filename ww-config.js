@@ -37,6 +37,7 @@ export default {
         label: "Points",
         properties: [
           "points",
+          "pointsIdFormula",
           "pointsLatitudeFormula",
           "pointsLongitudeFormula",
           "pointsLabelFormula",
@@ -154,6 +155,45 @@ export default {
           name: "animate",
           type: "boolean",
           label: { en: "Animate" },
+        },
+      ],
+      /* wwEditor:end */
+    },
+    {
+      action: "selectPoint",
+      label: { en: "Select point" },
+      /* wwEditor:start */
+      args: [
+        {
+          name: "id",
+          type: "string",
+          label: { en: "Point ID" },
+        },
+      ],
+      /* wwEditor:end */
+    },
+    {
+      action: "hoverPoint",
+      label: { en: "Hover point" },
+      /* wwEditor:start */
+      args: [
+        {
+          name: "id",
+          type: "string",
+          label: { en: "Point ID" },
+        },
+      ],
+      /* wwEditor:end */
+    },
+    {
+      action: "unhoverPoint",
+      label: { en: "Unhover point" },
+      /* wwEditor:start */
+      args: [
+        {
+          name: "id",
+          type: "string",
+          label: { en: "Point ID (optional)" },
         },
       ],
       /* wwEditor:end */
@@ -318,6 +358,7 @@ export default {
         item: {
           type: "Object",
           defaultValue: {
+            id: "",
             latitude: 0,
             longitude: 0,
             label: "New point",
@@ -333,6 +374,7 @@ export default {
           },
           options: {
             item: {
+              id: { label: { en: "ID" }, type: "Text" },
               latitude: { label: { en: "Latitude" }, type: "Number" },
               longitude: { label: { en: "Longitude" }, type: "Number" },
               label: { label: { en: "Label" }, type: "Text" },
@@ -353,10 +395,11 @@ export default {
       bindingValidation: {
         type: "array",
         tooltip:
-          "Array of point objects with latitude, longitude, label, description, color, image, icon, iconTrailing, displayIcon, displayIconTrailing, iconColor, iconColorSelected.",
+          "Array of point objects with id, latitude, longitude, label, description, color, image, icon, iconTrailing, displayIcon, displayIconTrailing, iconColor, iconColorSelected.",
       },
       /* wwEditor:end */
     },
+    pointsIdFormula: pointFormula("ID field", "id"),
     pointsLatitudeFormula: pointFormula("Latitude field", "latitude"),
     pointsLongitudeFormula: pointFormula("Longitude field", "longitude"),
     pointsLabelFormula: pointFormula("Label field", "label"),
