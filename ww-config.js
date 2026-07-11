@@ -31,7 +31,7 @@ export default {
       },
       {
         label: "Controls",
-        properties: ["scrollZoom", "showNavigation", "showGeolocate", "showAttribution"],
+        properties: ["scrollZoom", "showNavigation", "showGeolocate", "showAttribution", "moveDebounce"],
       },
       {
         label: "Points",
@@ -102,7 +102,11 @@ export default {
     {
       name: "map:move",
       label: { en: "On map move" },
-      event: { center: { lng: 0, lat: 0 }, zoom: 0 },
+      event: {
+        center: { lng: 0, lat: 0 },
+        zoom: 0,
+        bounds: { north: 0, south: 0, east: 0, west: 0 },
+      },
     },
     {
       name: "marker:click",
@@ -324,6 +328,26 @@ export default {
       propertyHelp: {
         tooltip:
           "Keep OpenFreeMap / MapLibre attribution visible (recommended).",
+      },
+      /* wwEditor:end */
+    },
+    moveDebounce: {
+      label: { en: "Move debounce (ms)" },
+      type: "Number",
+      section: "settings",
+      min: 0,
+      max: 5000,
+      step: 50,
+      defaultValue: 0,
+      bindable: true,
+      /* wwEditor:start */
+      bindingValidation: {
+        type: "number",
+        tooltip: "Delay in milliseconds before 'On map move' fires",
+      },
+      propertyHelp: {
+        tooltip:
+          "Wait this many milliseconds after the map stops moving before firing 'On map move'. Useful to avoid hammering an API that fetches by visible area. 0 fires immediately.",
       },
       /* wwEditor:end */
     },
