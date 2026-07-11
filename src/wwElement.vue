@@ -54,6 +54,7 @@ export default {
     let markersById = new Map(); // point.id -> { marker, point }
     let popupMarker = null;
     let resizeObserver = null;
+    let moveDebounceTimer = null;
     let navControl = null;
     let geoControl = null;
     let attributionControl = null;
@@ -1040,10 +1041,35 @@ export default {
         const z = map.getZoom();
         setMapCenter({ lng: c.lng, lat: c.lat });
         setMapZoom(z);
-        emit("trigger-event", {
-          name: "map:move",
-          event: { center: { lng: c.lng, lat: c.lat }, zoom: z },
-        });
+
+        const b = map.getBounds();
+        const payload = {
+          center: { lng: c.lng, lat: c.lat },
+          zoom: z,
+          bounds: {
+            north: b.getNorth(),
+            south: b.getSouth(),
+            east: b.getEast(),
+            west: b.getWest(),
+          },
+        };
+
+        // Debounce so panning/zooming that produces a burst of moveend events
+        // only fires the trigger once movement settles (e.g. to avoid hammering
+        // an API that fetches by visible area).
+        const delay = Number(props.content?.moveDebounce) || 0;
+        if (moveDebounceTimer) {
+          clearTimeout(moveDebounceTimer);
+          moveDebounceTimer = null;
+        }
+        if (delay > 0) {
+          moveDebounceTimer = setTimeout(() => {
+            moveDebounceTimer = null;
+            emit("trigger-event", { name: "map:move", event: payload });
+          }, delay);
+        } else {
+          emit("trigger-event", { name: "map:move", event: payload });
+        }
       });
 
       const win = wwLib.getFrontWindow();
@@ -1195,6 +1221,10 @@ export default {
       if (resizeObserver) {
         resizeObserver.disconnect();
         resizeObserver = null;
+      }
+      if (moveDebounceTimer) {
+        clearTimeout(moveDebounceTimer);
+        moveDebounceTimer = null;
       }
       clearMarkers();
       if (popupMarker) {
