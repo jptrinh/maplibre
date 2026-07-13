@@ -563,9 +563,66 @@ export default {
       return base;
     };
 
+    // Map a MapLibre marker anchor to the matching CSS transform-origin so a
+    // scaled marker grows away from the point it's anchored to (rather than
+    // drifting off it). The anchor prop only exposes bottom/center/top, but we
+    // map the full set MapLibre supports for safety.
+    const anchorToTransformOrigin = (anchor) =>
+      ({
+        center: "center center",
+        top: "center top",
+        bottom: "center bottom",
+        left: "left center",
+        right: "right center",
+        "top-left": "left top",
+        "top-right": "right top",
+        "bottom-left": "left bottom",
+        "bottom-right": "right bottom",
+      })[anchor] || "center bottom";
+
+    // Resolve a "scale origin" prop value to a CSS transform-origin. "anchor"
+    // (the default) grows the marker away from the coordinate it sits on, by
+    // reusing the anchor mapping; any other value (center/top/bottom/left/
+    // right) is an explicit override handled by the same mapping.
+    const resolveScaleOrigin = (origin) => {
+      const value = origin || "anchor";
+      const anchor = props.content?.markerImageAnchor || "bottom";
+      return anchorToTransformOrigin(value === "anchor" ? anchor : value);
+    };
+
+    // Wire a hover/selected scale onto a marker's inner element, mirroring the
+    // pill scale. `el` must be the inner element inside the MapLibre-owned
+    // wrapper so our transform is never overwritten by MapLibre's positioning
+    // translate (see buildPillElement). A selected marker sits enlarged; hover
+    // enlarges any marker and it settles back on mouseleave unless selected.
+    const wireMarkerScale = (el, point, scale, transformOrigin) => {
+      if (!Number.isFinite(scale) || scale <= 1) return;
+      const isSelected = () => point.id === selectedPointId.value;
+      el.style.transformOrigin = transformOrigin;
+      el.style.transition = "transform 0.15s ease";
+      el.style.transform = `scale(${isSelected() ? scale : 1})`;
+      el.addEventListener("mouseenter", () => {
+        el.style.transform = `scale(${scale})`;
+      });
+      el.addEventListener("mouseleave", () => {
+        el.style.transform = isSelected() ? `scale(${scale})` : "scale(1)";
+      });
+    };
+
+    // Wrap a marker's visual element in a positioning wrapper when a scale is
+    // active, so the scale transform lives on the inner element (MapLibre owns
+    // the wrapper's transform). Returns the element to hand to MapLibre.
+    const withMarkerScale = (el, point, scale, transformOrigin) => {
+      if (!el || !Number.isFinite(scale) || scale <= 1) return el;
+      const wrapper = wwLib.getFrontDocument().createElement("div");
+      wrapper.appendChild(el);
+      wireMarkerScale(el, point, scale, transformOrigin);
+      return wrapper;
+    };
+
     // Build an <img> element to use as a custom marker, or null to fall back
-    // to the built-in colored pin.
-    const buildImageElement = (imageUrl) => {
+    // to the built-in colored pin. Wrapped for scaling when Image scale > 1.
+    const buildImageElement = (point, imageUrl) => {
       const src = resolveImageUrl(imageUrl);
       if (!src) return null;
       const doc = wwLib.getFrontDocument();
@@ -577,7 +634,12 @@ export default {
       el.style.height = `${Number(props.content?.markerHeight ?? 40)}px`;
       el.style.objectFit = "contain";
       el.style.display = "block";
-      return el;
+      return withMarkerScale(
+        el,
+        point,
+        Number(props.content?.imageScale ?? 1),
+        resolveScaleOrigin(props.content?.imageScaleOrigin)
+      );
     };
 
     // Apply the shared pill styling (background/text/padding/radius/shadow)
@@ -605,13 +667,14 @@ export default {
         props.content?.pillShadow ?? "0 1px 4px rgba(0, 0, 0, 0.25)";
 
       // Resting scale: a selected pill sits enlarged; everything animates via
-      // the transition below. Pills are bottom-anchored, so scaling from the
-      // bottom keeps the tip glued to the point. The transform lives on this
-      // inner pill element (not the MapLibre marker wrapper, whose transform
-      // MapLibre overwrites on every move) — see buildPillElement.
+      // the transition below. The scale origin (default "Match anchor", i.e.
+      // the bottom tip on a bottom-anchored pill) keeps the pill glued to the
+      // point as it grows. The transform lives on this inner pill element (not
+      // the MapLibre marker wrapper, whose transform MapLibre overwrites on
+      // every move) — see buildPillElement.
       const scale = Number(props.content?.pillScale ?? 1);
       const restingScale = isSelected && scale > 1 ? scale : 1;
-      el.style.transformOrigin = "center bottom";
+      el.style.transformOrigin = resolveScaleOrigin(props.content?.pillScaleOrigin);
       el.style.transition =
         "background-color 0.15s ease, color 0.15s ease, transform 0.15s ease";
       el.style.transform = `scale(${restingScale})`;
@@ -737,7 +800,12 @@ export default {
         });
       }
 
-      return el;
+      return withMarkerScale(
+        el,
+        point,
+        Number(props.content?.iconScale ?? 1),
+        resolveScaleOrigin(props.content?.iconScaleOrigin)
+      );
     };
 
     // Build a pill element with an icon prepended to the label text.
@@ -809,7 +877,7 @@ export default {
 
         let element = null;
         if (markerType === "image") {
-          element = buildImageElement(point.image || defaultImage);
+          element = buildImageElement(point, point.image || defaultImage);
         } else if (markerType === "text-pill") {
           element = buildPillElement(point);
         } else if (markerType === "icon") {
@@ -1142,6 +1210,8 @@ export default {
         props.content?.defaultMarkerImage,
         props.content?.markerWidth,
         props.content?.markerHeight,
+        props.content?.imageScale,
+        props.content?.imageScaleOrigin,
         props.content?.markerImageAnchor,
         props.content?.pillTextColor,
         props.content?.pillTextColorHover,
@@ -1152,6 +1222,7 @@ export default {
         props.content?.pillBgColorSelected,
         props.content?.pillTextColorSelected,
         props.content?.pillScale,
+        props.content?.pillScaleOrigin,
         props.content?.pillPadding,
         props.content?.pillRadius,
         props.content?.pillShadow,
@@ -1161,6 +1232,8 @@ export default {
         props.content?.markerIconColor,
         props.content?.markerIconColorHover,
         props.content?.markerIconColorSelected,
+        props.content?.iconScale,
+        props.content?.iconScaleOrigin,
         props.content?.markerIconGap,
         resolvedIconSvg.value,
         resolvedIconSvgTrailing.value,
@@ -1181,8 +1254,15 @@ export default {
     // are applied to the newly selected point and cleared elsewhere.
     watch(selectedPointId, () => {
       const type = props.content?.markerType ?? "pin";
-      if (["icon", "icon-text-pill", "text-pill"].includes(type)) {
-        renderMarkers(true); // rebuild applies selected colors + z-index
+      // Image markers only need a rebuild when a scale is active, to apply the
+      // enlarged resting size a selected marker keeps.
+      const imageNeedsRebuild =
+        type === "image" && Number(props.content?.imageScale ?? 1) > 1;
+      if (
+        ["icon", "icon-text-pill", "text-pill"].includes(type) ||
+        imageNeedsRebuild
+      ) {
+        renderMarkers(true); // rebuild applies selected colors/scale + z-index
       } else {
         applyMarkerZIndex(); // pin/image markers just need the z-index bump
       }

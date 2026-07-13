@@ -64,12 +64,12 @@ export default {
       "markerImageAnchor",
       {
         label: "Marker defaults",
-        properties: ["defaultMarkerColor", "defaultMarkerImage", "markerWidth", "markerHeight"],
+        properties: ["defaultMarkerColor", "defaultMarkerImage", "markerWidth", "markerHeight", "imageScale", "imageScaleOrigin"],
       },
       {
         label: "Icon",
         isCollapsible: true,
-        properties: ["markerIcon", "markerIconTrailing", "markerIconSize", "markerIconColor", "markerIconColorHover", "markerIconColorSelected", "markerIconGap"],
+        properties: ["markerIcon", "markerIconTrailing", "markerIconSize", "markerIconColor", "markerIconColorHover", "markerIconColorSelected", "iconScale", "iconScaleOrigin", "markerIconGap"],
       },
       {
         label: "Text pill",
@@ -84,6 +84,7 @@ export default {
           "pillBgColorHover",
           "pillBgColorSelected",
           "pillScale",
+          "pillScaleOrigin",
           "pillPadding",
           "pillRadius",
           "pillShadow",
@@ -529,6 +530,55 @@ export default {
       },
       /* wwEditor:end */
     },
+    imageScale: {
+      label: { en: "Image scale (hover / selected)" },
+      type: "Number",
+      section: "style",
+      min: 1,
+      max: 2,
+      step: 0.05,
+      defaultValue: 1.1,
+      bindable: true,
+      hidden: (content) => (content?.markerType ?? "pin") !== "image",
+      /* wwEditor:start */
+      bindingValidation: {
+        type: "number",
+        tooltip: "Scale factor applied to an image marker when hovered or selected (1 = no scaling).",
+      },
+      propertyHelp: {
+        tooltip:
+          "How much the image grows when hovered or selected, e.g. 1.1 = 10% larger. Set to 1 to disable. The change animates smoothly.",
+      },
+      /* wwEditor:end */
+    },
+    imageScaleOrigin: {
+      label: { en: "Image scale origin" },
+      type: "TextSelect",
+      section: "style",
+      options: {
+        options: [
+          { value: "anchor", label: "Match anchor" },
+          { value: "center", label: "Center" },
+          { value: "top", label: "Top" },
+          { value: "bottom", label: "Bottom" },
+          { value: "left", label: "Left" },
+          { value: "right", label: "Right" },
+        ],
+      },
+      defaultValue: "anchor",
+      bindable: true,
+      hidden: (content) => (content?.markerType ?? "pin") !== "image",
+      /* wwEditor:start */
+      bindingValidation: {
+        type: "string",
+        tooltip: "Point the image grows from when scaling: anchor | center | top | bottom | left | right.",
+      },
+      propertyHelp: {
+        tooltip:
+          "Which point the image grows out from when it scales. 'Match anchor' grows away from the coordinate the marker sits on.",
+      },
+      /* wwEditor:end */
+    },
     markerImageAnchor: {
       label: { en: "Marker anchor" },
       type: "TextSelect",
@@ -656,6 +706,55 @@ export default {
       bindingValidation: {
         type: "string",
         tooltip: "Color of the icon when the point is selected.",
+      },
+      /* wwEditor:end */
+    },
+    iconScale: {
+      label: { en: "Icon scale (hover / selected)" },
+      type: "Number",
+      section: "style",
+      min: 1,
+      max: 2,
+      step: 0.05,
+      defaultValue: 1.1,
+      bindable: true,
+      hidden: (content) => (content?.markerType ?? "pin") !== "icon",
+      /* wwEditor:start */
+      bindingValidation: {
+        type: "number",
+        tooltip: "Scale factor applied to an icon marker when hovered or selected (1 = no scaling).",
+      },
+      propertyHelp: {
+        tooltip:
+          "How much the icon circle grows when hovered or selected, e.g. 1.1 = 10% larger. Set to 1 to disable. The change animates smoothly.",
+      },
+      /* wwEditor:end */
+    },
+    iconScaleOrigin: {
+      label: { en: "Icon scale origin" },
+      type: "TextSelect",
+      section: "style",
+      options: {
+        options: [
+          { value: "anchor", label: "Match anchor" },
+          { value: "center", label: "Center" },
+          { value: "top", label: "Top" },
+          { value: "bottom", label: "Bottom" },
+          { value: "left", label: "Left" },
+          { value: "right", label: "Right" },
+        ],
+      },
+      defaultValue: "anchor",
+      bindable: true,
+      hidden: (content) => (content?.markerType ?? "pin") !== "icon",
+      /* wwEditor:start */
+      bindingValidation: {
+        type: "string",
+        tooltip: "Point the icon circle grows from when scaling: anchor | center | top | bottom | left | right.",
+      },
+      propertyHelp: {
+        tooltip:
+          "Which point the icon circle grows out from when it scales. 'Match anchor' grows away from the coordinate the marker sits on.",
       },
       /* wwEditor:end */
     },
@@ -811,6 +910,35 @@ export default {
       propertyHelp: {
         tooltip:
           "How much the pill grows when hovered or selected, e.g. 1.1 = 10% larger. Set to 1 to disable. The change animates smoothly.",
+      },
+      /* wwEditor:end */
+    },
+    pillScaleOrigin: {
+      label: { en: "Pill scale origin" },
+      type: "TextSelect",
+      section: "style",
+      options: {
+        options: [
+          { value: "anchor", label: "Match anchor" },
+          { value: "center", label: "Center" },
+          { value: "top", label: "Top" },
+          { value: "bottom", label: "Bottom" },
+          { value: "left", label: "Left" },
+          { value: "right", label: "Right" },
+        ],
+      },
+      defaultValue: "anchor",
+      bindable: true,
+      hidden: (content) =>
+        !["text-pill", "icon-text-pill"].includes(content?.markerType ?? "pin"),
+      /* wwEditor:start */
+      bindingValidation: {
+        type: "string",
+        tooltip: "Point the pill grows from when scaling: anchor | center | top | bottom | left | right.",
+      },
+      propertyHelp: {
+        tooltip:
+          "Which point the pill grows out from when it scales. 'Match anchor' grows away from the coordinate the marker sits on (e.g. the bottom tip).",
       },
       /* wwEditor:end */
     },
