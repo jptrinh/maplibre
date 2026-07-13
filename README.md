@@ -15,17 +15,21 @@ points as colored pin markers with clickable popups.
 - **Markers** — pick a "Marker type":
   - **Pin** — built-in colored marker (per-point `color` or the default marker color).
   - **Image** — a custom image: global "Default marker image" and/or per-point "Image URL"
-    (a point's image overrides the default); control width/height and anchor.
+    (a point's image overrides the default); control width/height, anchor, and an "Image scale"
+    that grows the image on hover/selected.
   - **Text pill** — a rounded badge showing the point's label, with style props for the text
     (color, size, weight) and the pill (background, padding, radius, shadow), plus separate
     colors/scale for hover and selected states — a point's `color` overrides the base
     background but not the hover/selected colors.
   - **Icon** / **Icon and Text pill** — a leading and/or trailing system icon (each toggleable),
     with size, color, hover color, selected color, and gap controls; can be shown alone or
-    combined with the text pill.
+    combined with the text pill. The **Icon** type also has an "Icon scale" that grows the icon
+    circle on hover/selected.
 - **Hover & selected states** — hovering or selecting a marker raises it above the others,
-  and text pills / icons support distinct colors (and pill scale) for hover vs. selected,
-  independent of the base/point color.
+  and every marker type supports growing on hover/selected via a scale prop (pill scale, image
+  scale, icon scale), each with a "scale origin" that controls the point the marker grows from
+  (defaults to "Match anchor"); text pills / icons also support distinct colors for hover vs.
+  selected, independent of the base/point color.
 - **Dropzone popup** — clicking a pin opens a popup whose content you build with your own WeWeb
   elements (dropped into the popup dropzone). MapLibre keeps it anchored to the point on
   zoom / drag / rotate, flips above/below automatically when there isn't room, and its content
