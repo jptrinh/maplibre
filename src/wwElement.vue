@@ -313,6 +313,7 @@ export default {
       if (!isPopupVisible.value) return;
       isPopupVisible.value = false;
       selectedPointId.value = null;
+      setSelectedPoint(null);
       emit("trigger-event", { name: "popup:close", event: {} });
     };
 
