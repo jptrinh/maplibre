@@ -3,7 +3,7 @@
 A [WeWeb](https://www.weweb.io/) custom element that renders a
 [MapLibre GL JS](https://maplibre.org/maplibre-gl-js/docs/) map styled with free,
 keyless [OpenFreeMap](https://openfreemap.org/) tiles, and displays a bindable array of
-points as colored pin markers with clickable popups.
+points as colored pin markers with clickable popups..
 
 ## Features
 
