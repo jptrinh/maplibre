@@ -94,7 +94,15 @@ export default {
     ],
   },
   triggerEvents: [
-    { name: "map:load", label: { en: "On map load" }, event: {} },
+    {
+      name: "map:load",
+      label: { en: "On map load" },
+      event: {
+        center: { lng: 0, lat: 0 },
+        zoom: 0,
+        bounds: { north: 0, south: 0, east: 0, west: 0 },
+      },
+    },
     {
       name: "map:click",
       label: { en: "On map click" },

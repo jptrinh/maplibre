@@ -1015,6 +1015,23 @@ export default {
       doc.head.appendChild(link);
     };
 
+    // Current viewport, shared by the map:load and map:move triggers so both
+    // expose the exact same shape to workflows.
+    const viewportPayload = () => {
+      const c = map.getCenter();
+      const b = map.getBounds();
+      return {
+        center: { lng: c.lng, lat: c.lat },
+        zoom: map.getZoom(),
+        bounds: {
+          north: b.getNorth(),
+          south: b.getSouth(),
+          east: b.getEast(),
+          west: b.getWest(),
+        },
+      };
+    };
+
     let initAttempts = 0;
     let isUnmounted = false;
     const initMap = () => {
@@ -1085,7 +1102,13 @@ export default {
         syncControls();
         resolvePointIcons();
         renderMarkers();
-        emit("trigger-event", { name: "map:load", event: {} });
+        // Same payload as map:move, so a workflow can fetch by visible area on
+        // load without waiting for the first pan/zoom. Read after resize() so
+        // the bounds match the final container size.
+        const viewport = viewportPayload();
+        setMapCenter(viewport.center);
+        setMapZoom(viewport.zoom);
+        emit("trigger-event", { name: "map:load", event: viewport });
         applyEditorPopup();
       });
 
@@ -1106,22 +1129,9 @@ export default {
       });
 
       map.on("moveend", () => {
-        const c = map.getCenter();
-        const z = map.getZoom();
-        setMapCenter({ lng: c.lng, lat: c.lat });
-        setMapZoom(z);
-
-        const b = map.getBounds();
-        const payload = {
-          center: { lng: c.lng, lat: c.lat },
-          zoom: z,
-          bounds: {
-            north: b.getNorth(),
-            south: b.getSouth(),
-            east: b.getEast(),
-            west: b.getWest(),
-          },
-        };
+        const payload = viewportPayload();
+        setMapCenter(payload.center);
+        setMapZoom(payload.zoom);
 
         // Debounce so panning/zooming that produces a burst of moveend events
         // only fires the trigger once movement settles (e.g. to avoid hammering

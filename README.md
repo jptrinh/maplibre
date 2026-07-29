@@ -38,9 +38,10 @@ points as colored pin markers with clickable popups..
 - **Optional controls** — navigation, geolocate, scroll-to-zoom, attribution (all toggleable).
 - **Internal variables** — `mapCenter`, `mapZoom`, `isMapLoaded`, `selectedPoint`.
 - **Trigger events** — `map:load`, `map:click`, `map:move`, `marker:click`,
-  `marker:mouseenter`, `marker:mouseleave`, `popup:open`, `popup:close`. `map:move`
-  carries `center`, `zoom`, and `bounds` (`north`/`south`/`east`/`west` of the visible
-  area) — use the bounds to fetch only what's on screen. Set "Move debounce (ms)" to
+  `marker:mouseenter`, `marker:mouseleave`, `popup:open`, `popup:close`. `map:load` and
+  `map:move` both carry `center`, `zoom`, and `bounds` (`north`/`south`/`east`/`west` of
+  the visible area) — use the bounds to fetch only what's on screen, from the initial
+  load onwards. Set "Move debounce (ms)" to
   wait until panning/zooming settles before it fires, so you don't hammer your API.
 - **Component actions** — `Fly to` (animate the map to a lat/lng/zoom), `Select point`,
   `Hover point`, `Unhover point`, `Close popup` — trigger these from your own WeWeb workflows.
