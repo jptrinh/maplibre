@@ -173,6 +173,24 @@ export default {
       /* wwEditor:end */
     },
     {
+      action: "resetNorth",
+      label: { en: "Reset north" },
+      /* wwEditor:start */
+      args: [
+        {
+          name: "resetPitch",
+          type: "boolean",
+          label: { en: "Also reset tilt" },
+        },
+        {
+          name: "animate",
+          type: "boolean",
+          label: { en: "Animate" },
+        },
+      ],
+      /* wwEditor:end */
+    },
+    {
       action: "selectPoint",
       label: { en: "Select point" },
       /* wwEditor:start */

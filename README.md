@@ -43,7 +43,8 @@ points as colored pin markers with clickable popups..
   the visible area) — use the bounds to fetch only what's on screen, from the initial
   load onwards. Set "Move debounce (ms)" to
   wait until panning/zooming settles before it fires, so you don't hammer your API.
-- **Component actions** — `Fly to` (animate the map to a lat/lng/zoom), `Select point`,
+- **Component actions** — `Fly to` (animate the map to a lat/lng/zoom), `Reset north`
+  (swing the map back to north-up; optionally reset tilt too), `Select point`,
   `Hover point`, `Unhover point`, `Close popup` — trigger these from your own WeWeb workflows.
 
 ## Usage notes

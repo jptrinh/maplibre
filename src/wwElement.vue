@@ -332,6 +332,17 @@ export default {
       else map.jumpTo(target);
     };
 
+    // Swing the map back to north-up. `resetPitch` also drops any tilt, which
+    // is what MapLibre's own compass button does when built with
+    // visualizePitch. Lets a WeWeb-built compass button replace the native
+    // control (hide it with "Show compass") without losing the behaviour.
+    const resetNorth = (resetPitch = false, animate = true) => {
+      if (!map) return;
+      const options = animate ? {} : { duration: 0 };
+      if (resetPitch) map.resetNorthPitch(options);
+      else map.resetNorth(options);
+    };
+
     // Resolve a user-supplied id to a processed point. `p.id` is the canonical
     // `point-${rawId}` built from the mapped ID field (see processedPoints), so
     // callers can pass either that raw id value or the composed marker id. Used
@@ -1341,6 +1352,7 @@ export default {
       isEditing,
       // Exposed as WeWeb component actions (see `actions` in ww-config.js).
       flyTo,
+      resetNorth,
       selectPoint,
       hoverPoint,
       unhoverPoint,
