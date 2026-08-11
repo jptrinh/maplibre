@@ -1,0 +1,133 @@
+{
+  "metadata": {
+    "name": "maplibre",
+    "description": "Renders a MapLibre GL JS map styled with free, keyless OpenFreeMap tiles, and displays a bindable array of points as pin/image/text-pill/icon markers with clickable popups.",
+    "keywords": ["map", "maplibre", "openfreemap", "markers", "pins", "geolocation", "points"],
+    "features": [
+      "OpenFreeMap styles (liberty, bright, positron, dark) or a custom MapLibre style URL, no API key required",
+      "Bindable points array with per-field Formula mapping (latitude, longitude, label, description, color, image, icons)",
+      "Five marker types: pin, image, text pill, icon, icon and text pill",
+      "Hover and selected states with configurable growth scale per marker type",
+      "Dropzone popup anchored to the clicked point, built from WeWeb elements, bound to selectedPoint",
+      "Optional navigation, geolocate, scroll-zoom and attribution controls",
+      "Component actions to fly to coordinates, reset north, and select/hover points programmatically"
+    ],
+    "inherit": []
+  },
+  "properties": [
+    { "name": "mapStyle", "description": "OpenFreeMap base style, overridden by customStyleUrl if set.", "type": "string", "defaultValue": "liberty" },
+    { "name": "customStyleUrl", "description": "URL to a MapLibre style JSON, overrides mapStyle when set.", "type": "string", "defaultValue": "" },
+    { "name": "initialLatitude", "description": "Initial map center latitude.", "type": "number", "defaultValue": 52.517 },
+    { "name": "initialLongitude", "description": "Initial map center longitude.", "type": "number", "defaultValue": 13.388 },
+    { "name": "initialZoom", "description": "Initial zoom level (0-22).", "type": "number", "defaultValue": 9.5 },
+    { "name": "scrollZoom", "description": "Enable zooming the map with the mouse wheel/trackpad.", "type": "boolean", "defaultValue": true },
+    { "name": "showNavigation", "description": "Show the zoom in/out and compass control.", "type": "boolean", "defaultValue": false },
+    { "name": "showGeolocate", "description": "Show the geolocate (center on user) control.", "type": "boolean", "defaultValue": false },
+    { "name": "showAttribution", "description": "Show OpenFreeMap/MapLibre attribution (recommended to keep on).", "type": "boolean", "defaultValue": true },
+    { "name": "moveDebounce", "description": "Milliseconds to wait after the map stops moving before firing 'On map move'.", "type": "number", "defaultValue": 0 },
+    { "name": "points", "description": "Array of point objects to render as markers (id, latitude, longitude, label, description, color, image, icon, iconTrailing, displayIcon, displayIconTrailing, iconColor, iconColorSelected).", "type": "array", "defaultValue": [] },
+    { "name": "pointsIdFormula", "description": "Formula mapping each row of a bound points collection to its id field.", "type": "formula" },
+    { "name": "pointsLatitudeFormula", "description": "Formula mapping each row of a bound points collection to its latitude field.", "type": "formula" },
+    { "name": "pointsLongitudeFormula", "description": "Formula mapping each row of a bound points collection to its longitude field.", "type": "formula" },
+    { "name": "pointsLabelFormula", "description": "Formula mapping each row of a bound points collection to its label field.", "type": "formula" },
+    { "name": "pointsDescriptionFormula", "description": "Formula mapping each row of a bound points collection to its description field.", "type": "formula" },
+    { "name": "pointsColorFormula", "description": "Formula mapping each row of a bound points collection to its marker color field.", "type": "formula" },
+    { "name": "pointsImageFormula", "description": "Formula mapping each row of a bound points collection to its image URL field.", "type": "formula" },
+    { "name": "pointsIconFormula", "description": "Formula mapping each row of a bound points collection to its leading icon field.", "type": "formula" },
+    { "name": "pointsIconTrailingFormula", "description": "Formula mapping each row of a bound points collection to its trailing icon field.", "type": "formula" },
+    { "name": "pointsDisplayIconFormula", "description": "Formula mapping each row to whether the leading icon is shown.", "type": "formula" },
+    { "name": "pointsDisplayIconTrailingFormula", "description": "Formula mapping each row to whether the trailing icon is shown.", "type": "formula" },
+    { "name": "pointsIconColorFormula", "description": "Formula mapping each row of a bound points collection to its icon color field.", "type": "formula" },
+    { "name": "pointsIconColorSelectedFormula", "description": "Formula mapping each row to its selected-state icon color field.", "type": "formula" },
+    { "name": "markerType", "description": "Marker visual style: pin | image | text-pill | icon | icon-text-pill.", "type": "string", "defaultValue": "pin" },
+    { "name": "defaultMarkerColor", "description": "Fallback color for pin and icon markers when a point has no own color.", "type": "string", "defaultValue": "#F23636" },
+    { "name": "defaultMarkerImage", "description": "Fallback image for image markers when a point has no own image.", "type": "string", "defaultValue": "" },
+    { "name": "markerWidth", "description": "Image marker width in pixels.", "type": "number", "defaultValue": 32 },
+    { "name": "markerHeight", "description": "Image marker height in pixels.", "type": "number", "defaultValue": 40 },
+    { "name": "imageScale", "description": "Scale factor applied to an image marker on hover/selected (1 = no scaling).", "type": "number", "defaultValue": 1.1 },
+    { "name": "imageScaleOrigin", "description": "Point the image marker grows from when scaling: anchor | center | top | bottom | left | right.", "type": "string", "defaultValue": "anchor" },
+    { "name": "markerImageAnchor", "description": "Which part of a non-pin marker sits on the coordinate: bottom | center | top.", "type": "string", "defaultValue": "bottom" },
+    { "name": "markerIcon", "description": "Leading system icon for icon / icon-text-pill marker types.", "type": "string", "defaultValue": "" },
+    { "name": "markerIconTrailing", "description": "Trailing system icon for the icon-text-pill marker type.", "type": "string", "defaultValue": "" },
+    { "name": "markerIconSize", "description": "Icon size in pixels.", "type": "number", "defaultValue": 20 },
+    { "name": "markerIconColor", "description": "Icon color.", "type": "string", "defaultValue": "#FFFFFF" },
+    { "name": "markerIconColorHover", "description": "Icon color on hover, falls back to the base color when empty.", "type": "string", "defaultValue": "" },
+    { "name": "markerIconColorSelected", "description": "Icon color when the point is selected, falls back to the base color when empty.", "type": "string", "defaultValue": "" },
+    { "name": "iconScale", "description": "Scale factor applied to an icon marker's circle on hover/selected (1 = no scaling).", "type": "number", "defaultValue": 1.1 },
+    { "name": "iconScaleOrigin", "description": "Point the icon circle grows from when scaling: anchor | center | top | bottom | left | right.", "type": "string", "defaultValue": "anchor" },
+    { "name": "markerIconGap", "description": "Gap in pixels between icon and label text in icon-text-pill markers.", "type": "number", "defaultValue": 6 },
+    { "name": "pillTextColor", "description": "Text pill label color.", "type": "string", "defaultValue": "#FFFFFF" },
+    { "name": "pillTextColorHover", "description": "Text pill label color on hover, falls back to the base color when empty.", "type": "string", "defaultValue": "" },
+    { "name": "pillTextColorSelected", "description": "Text pill label color when selected, falls back to the base color when empty.", "type": "string", "defaultValue": "" },
+    { "name": "pillTextSize", "description": "Text pill font size in pixels.", "type": "number", "defaultValue": 14 },
+    { "name": "pillTextWeight", "description": "Text pill font weight (400/500/600/700).", "type": "string", "defaultValue": "600" },
+    { "name": "pillBgColor", "description": "Text pill background color; a point's own color overrides this.", "type": "string", "defaultValue": "#111827" },
+    { "name": "pillBgColorHover", "description": "Text pill background color on hover, falls back to the base background when empty.", "type": "string", "defaultValue": "" },
+    { "name": "pillBgColorSelected", "description": "Text pill background color when selected, falls back to the base background when empty.", "type": "string", "defaultValue": "" },
+    { "name": "pillScale", "description": "Scale factor applied to a pill on hover/selected (1 = no scaling).", "type": "number", "defaultValue": 1.1 },
+    { "name": "pillScaleOrigin", "description": "Point the pill grows from when scaling: anchor | center | top | bottom | left | right.", "type": "string", "defaultValue": "anchor" },
+    { "name": "pillPadding", "description": "Text pill CSS padding.", "type": "string", "defaultValue": "6px 12px 6px 12px" },
+    { "name": "pillRadius", "description": "Text pill CSS border-radius.", "type": "string", "defaultValue": "999px" },
+    { "name": "pillShadow", "description": "Text pill CSS box-shadow.", "type": "string", "defaultValue": "0px 1px 4px 0px rgba(0, 0, 0, 0.25)" },
+    { "name": "showPopups", "description": "Open the popup dropzone anchored to a point when its marker is clicked.", "type": "boolean", "defaultValue": true },
+    { "name": "autoFlipPopup", "description": "Open the popup below the point instead of above when there isn't room above.", "type": "boolean", "defaultValue": true },
+    { "name": "popupContent", "description": "Hidden dropzone property holding the WeWeb elements rendered inside the map popup.", "type": "array", "defaultValue": [] },
+    { "name": "popupGap", "description": "Vertical gap in pixels between the marker tip and the popup.", "type": "number", "defaultValue": 8 },
+    { "name": "forcePopupInEditor", "description": "Editor only: keep the popup open on the first point to design it. No effect in production.", "type": "boolean", "defaultValue": true }
+  ],
+  "states": [],
+  "events": [
+    { "name": "map:load", "description": "Fires once the map has finished loading.", "payload": { "center": "{lng, lat}", "zoom": "number", "bounds": "{north, south, east, west}" } },
+    { "name": "map:click", "description": "Fires when the map background is clicked.", "payload": { "lngLat": "{lng, lat}" } },
+    { "name": "map:move", "description": "Fires after the map stops moving (debounced by moveDebounce).", "payload": { "center": "{lng, lat}", "zoom": "number", "bounds": "{north, south, east, west}" } },
+    { "name": "marker:click", "description": "Fires when a marker is clicked, before the popup opens.", "payload": { "point": "resolved point object" } },
+    { "name": "marker:mouseenter", "description": "Fires when the pointer enters a marker.", "payload": { "point": "resolved point object" } },
+    { "name": "marker:mouseleave", "description": "Fires when the pointer leaves a marker.", "payload": { "point": "resolved point object" } },
+    { "name": "popup:open", "description": "Fires when the popup opens for a point.", "payload": { "point": "resolved point object" } },
+    { "name": "popup:close", "description": "Fires when the popup closes.", "payload": {} }
+  ],
+  "localContext": [],
+  "actions": [
+    { "label": "Fly to", "actionName": "flyTo", "description": "Animate (or jump) the map to the given latitude/longitude/zoom.", "args": [
+      { "name": "latitude", "type": "number", "description": "Target latitude." },
+      { "name": "longitude", "type": "number", "description": "Target longitude." },
+      { "name": "zoom", "type": "number", "description": "Optional target zoom level; current zoom is kept if omitted/invalid." },
+      { "name": "animate", "type": "boolean", "description": "Animate the transition (true) or jump instantly (false)." }
+    ] },
+    { "label": "Reset north", "actionName": "resetNorth", "description": "Swing the map back to north-up, optionally also resetting tilt.", "args": [
+      { "name": "resetPitch", "type": "boolean", "description": "Also reset the map's tilt/pitch." },
+      { "name": "animate", "type": "boolean", "description": "Animate the transition." }
+    ] },
+    { "label": "Select point", "actionName": "selectPoint", "description": "Select the point matching the given id, highlighting its marker and opening its popup as a click would.", "args": [
+      { "name": "id", "type": "string", "description": "Point id to select (matches the mapped ID field or array index)." }
+    ] },
+    { "label": "Hover point", "actionName": "hoverPoint", "description": "Programmatically apply the hover state to the point matching the given id.", "args": [
+      { "name": "id", "type": "string", "description": "Point id to hover." }
+    ] },
+    { "label": "Unhover point", "actionName": "unhoverPoint", "description": "Clear the hover state from the given point, or whichever point is currently hovered if omitted.", "args": [
+      { "name": "id", "type": "string", "description": "Point id to unhover (optional)." }
+    ] },
+    { "label": "Close popup", "actionName": "closePopup", "description": "Close the currently open popup, if any.", "args": [] }
+  ],
+  "slots": [
+    { "name": "popupContent", "description": "Dropzone rendered inside the map popup. Bind its content to the selectedPoint component variable to display the clicked point's data.", "type": "element" }
+  ],
+  "variables": [
+    { "name": "mapCenter", "description": "Current map center {lng, lat}.", "type": "object", "readonly": true },
+    { "name": "mapZoom", "description": "Current map zoom level.", "type": "number", "readonly": true },
+    { "name": "isMapLoaded", "description": "Whether the map has finished its initial load.", "type": "boolean", "readonly": true },
+    { "name": "selectedPoint", "description": "The raw resolved data of the currently selected (popup-open) point, or null.", "type": "object", "readonly": true }
+  ],
+  "specifications": [
+    "The element must have an explicit height (or a parent with one) — the map fills its container fluidly and collapses to 0 height otherwise.",
+    "Keep 'Show attribution' on to comply with OpenFreeMap / MapLibre terms unless attribution is provided elsewhere.",
+    "When 'Points' is bound to external data, map each field with the per-field Formula properties (pointsLatitudeFormula, pointsLongitudeFormula, etc.).",
+    "Design the popup by dropping WeWeb elements into the popupContent dropzone and binding their content to the selectedPoint component variable; in the editor the popup auto-opens on the first point (toggle via 'Force popup open (editor)'), in production it opens on marker click.",
+    "To use a custom marker image, set 'Default marker image' (applies to all points) or a point's own 'Image URL' (overrides the default for that point), and map it via pointsImageFormula when bound to external data.",
+    "No API key is required; map styles are served by the free OpenFreeMap tile service."
+  ],
+  "examples": [
+    { "description": "Minimal map with two static points", "example": "{\"mapStyle\": \"liberty\", \"initialLatitude\": 48.8566, \"initialLongitude\": 2.3522, \"initialZoom\": 11, \"points\": [{\"id\": \"1\", \"latitude\": 48.8566, \"longitude\": 2.3522, \"label\": \"Paris\", \"color\": \"#F23636\"}]}" }
+  ],
+  "dependencies": []
+}
