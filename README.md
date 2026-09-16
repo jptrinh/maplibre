@@ -35,17 +35,25 @@ points as colored pin markers with clickable popups..
   zoom / drag / rotate, flips above/below automatically when there isn't room, and its content
   is selectable/text-cursor aware. Bind the popup content to the `selectedPoint` variable.
   Clicking the map closes it. Toggle with "Open popup on marker click".
+- **Drop pin** — turn on "Let users drop a pin" and clicking the map places a single draft
+  pin there, exposed as the `droppedPin` variable (`{ latitude, longitude }`). Clicking again
+  moves it, and the pin is draggable by default so the user can fine-tune the position.
+  Clicking an existing marker never drops a pin. Style it with its own color, or replace it
+  with an image (width/height controls).
 - **Optional controls** — navigation, geolocate, scroll-to-zoom, attribution (all toggleable).
-- **Internal variables** — `mapCenter`, `mapZoom`, `isMapLoaded`, `selectedPoint`.
+- **Internal variables** — `mapCenter`, `mapZoom`, `isMapLoaded`, `selectedPoint`,
+  `droppedPin`.
 - **Trigger events** — `map:load`, `map:click`, `map:move`, `marker:click`,
-  `marker:mouseenter`, `marker:mouseleave`, `popup:open`, `popup:close`. `map:load` and
+  `marker:mouseenter`, `marker:mouseleave`, `popup:open`, `popup:close`, `pin:drop`,
+  `pin:move`, `pin:clear`. `map:load` and
   `map:move` both carry `center`, `zoom`, and `bounds` (`north`/`south`/`east`/`west` of
   the visible area) — use the bounds to fetch only what's on screen, from the initial
   load onwards. Set "Move debounce (ms)" to
   wait until panning/zooming settles before it fires, so you don't hammer your API.
 - **Component actions** — `Fly to` (animate the map to a lat/lng/zoom), `Reset north`
   (swing the map back to north-up; optionally reset tilt too), `Select point`,
-  `Hover point`, `Unhover point`, `Close popup` — trigger these from your own WeWeb workflows.
+  `Hover point`, `Unhover point`, `Close popup`, `Drop pin` (place the pin at given
+  coordinates), `Clear pin` — trigger these from your own WeWeb workflows.
 
 ## Usage notes
 
@@ -61,6 +69,12 @@ points as colored pin markers with clickable popups..
   URL (applies to all points), or give individual points an "Image URL" (overrides the default
   for that point). When bound to external data, map the image with the "Image field" formula.
   Adjust "Marker width/height" and "Image marker anchor" as needed.
+
+- **Dropping a pin.** `droppedPin` holds `{ latitude, longitude }` or `null`. Bind it to a
+  form field, or use the `pin:drop` / `pin:move` triggers to save the coordinates. `map:click`
+  still fires on the same click, so existing map-click workflows keep working. Use the
+  `Drop pin` action to pre-place the pin (e.g. from a geocoded address) and `Clear pin` to
+  reset it.
 
 ## Installation
 

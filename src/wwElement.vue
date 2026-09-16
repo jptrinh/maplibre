@@ -53,6 +53,7 @@ export default {
     let map = null;
     let markersById = new Map(); // point.id -> { marker, point }
     let popupMarker = null;
+    let droppedPinMarker = null; // the click-placed draft pin, if any
     let resizeObserver = null;
     let moveDebounceTimer = null;
     let navControl = null;
@@ -100,6 +101,14 @@ export default {
       wwLib.wwVariable.useComponentVariable({
         uid: props.uid,
         name: "selectedPoint",
+        type: "object",
+        defaultValue: null,
+      });
+
+    const { value: droppedPin, setValue: setDroppedPin } =
+      wwLib.wwVariable.useComponentVariable({
+        uid: props.uid,
+        name: "droppedPin",
         type: "object",
         defaultValue: null,
       });
@@ -967,6 +976,110 @@ export default {
       });
     };
 
+    // ----- Dropped pin -----
+    // A single draft pin the user places by clicking the map (see the "Let
+    // users drop a pin" setting). It deliberately lives outside markersById:
+    // renderMarkers()'s reconcile pass removes every marker whose id isn't in
+    // the points array, which would delete this one on the next render.
+    const dropPinEnabled = computed(() => !!props.content?.enableDropPin);
+
+    // Build the dropped pin's element, or null to fall back to MapLibre's
+    // built-in colored pin (the default).
+    const buildDropPinElement = () => {
+      const src = resolveImageUrl(props.content?.dropPinImage);
+      if (!src) return null;
+      const doc = wwLib.getFrontDocument();
+      const el = doc.createElement("img");
+      el.src = src;
+      el.alt = "";
+      el.draggable = false;
+      el.style.width = `${Number(props.content?.dropPinWidth ?? 32)}px`;
+      el.style.height = `${Number(props.content?.dropPinHeight ?? 40)}px`;
+      el.style.objectFit = "contain";
+      el.style.display = "block";
+      return el;
+    };
+
+    const removeDropPinMarker = () => {
+      if (!droppedPinMarker) return;
+      droppedPinMarker.remove();
+      droppedPinMarker = null;
+    };
+
+    // Create the marker for the current droppedPin value, or move the existing
+    // one. `forceRebuild` is needed when an appearance prop changes, since
+    // MapLibre bakes the element/color in at construction time.
+    const renderDroppedPin = (forceRebuild = false) => {
+      if (!map) return;
+      const pin = droppedPin.value;
+      const lat = Number(pin?.latitude);
+      const lng = Number(pin?.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        removeDropPinMarker();
+        return;
+      }
+      if (forceRebuild) removeDropPinMarker();
+      if (droppedPinMarker) {
+        droppedPinMarker.setLngLat([lng, lat]);
+        return;
+      }
+
+      const draggable = props.content?.dropPinDraggable ?? true;
+      const element = buildDropPinElement();
+      droppedPinMarker = new maplibregl.Marker({
+        ...(element
+          ? { element, anchor: "bottom" }
+          : { color: props.content?.dropPinColor || "#2E7DF7" }),
+        draggable,
+      });
+      droppedPinMarker.setLngLat([lng, lat]).addTo(map);
+
+      // Dragging is how the user fine-tunes the position after the initial
+      // click; commit the coordinates once the drag settles.
+      droppedPinMarker.on("dragend", () => {
+        const ll = droppedPinMarker?.getLngLat();
+        if (!ll) return;
+        setDroppedPin({ latitude: ll.lat, longitude: ll.lng });
+        emit("trigger-event", {
+          name: "pin:move",
+          event: { lngLat: { lng: ll.lng, lat: ll.lat } },
+        });
+      });
+
+      // MapLibre appends markers inside the canvas container, so a click on the
+      // pin bubbles to map.on("click") and would drop a second pin underneath
+      // it (same reason wireMarkerEvents stops propagation for points).
+      const el = droppedPinMarker.getElement();
+      if (el) {
+        el.style.cursor = draggable ? "move" : "pointer";
+        el.addEventListener("click", (ev) => ev.stopPropagation());
+      }
+    };
+
+    // Component action (see `actions` in ww-config.js), also used by the
+    // click-to-place handler. Places the draft pin at the given coordinates,
+    // moving it if one is already down.
+    const dropPin = (latitude, longitude) => {
+      const lat = Number(latitude);
+      const lng = Number(longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      setDroppedPin({ latitude: lat, longitude: lng });
+      renderDroppedPin();
+      emit("trigger-event", {
+        name: "pin:drop",
+        event: { lngLat: { lng, lat } },
+      });
+    };
+
+    // Component action (see `actions` in ww-config.js). Removes the draft pin
+    // and resets the droppedPin variable.
+    const clearPin = () => {
+      if (!droppedPin.value && !droppedPinMarker) return;
+      setDroppedPin(null);
+      removeDropPinMarker();
+      emit("trigger-event", { name: "pin:clear", event: {} });
+    };
+
     const syncControls = () => {
       if (!map) return;
 
@@ -1113,6 +1226,7 @@ export default {
         syncControls();
         resolvePointIcons();
         renderMarkers();
+        renderDroppedPin();
         // Same payload as map:move, so a workflow can fetch by visible area on
         // load without waiting for the first pan/zoom. Read after resize() so
         // the bounds match the final container size.
@@ -1128,6 +1242,9 @@ export default {
           name: "map:click",
           event: { lngLat: { lng: e.lngLat.lng, lat: e.lngLat.lat } },
         });
+        // Clicks on a marker (point or dropped pin) stop propagating before
+        // they reach here, so this only ever fires for the map itself.
+        if (dropPinEnabled.value) dropPin(e.lngLat.lat, e.lngLat.lng);
         // Keep the popup open while it's force-opened in the editor.
         if (isEditing.value && props.content?.forcePopupInEditor) return;
         closePopup();
@@ -1178,6 +1295,25 @@ export default {
     watch(styleUrl, (newUrl) => {
       if (!map || !newUrl) return;
       map.setStyle(newUrl);
+    });
+
+    // The dropped pin's look is baked in when MapLibre constructs the marker,
+    // so any appearance change has to rebuild it.
+    watch(
+      () => [
+        props.content?.dropPinColor,
+        props.content?.dropPinImage,
+        props.content?.dropPinWidth,
+        props.content?.dropPinHeight,
+        props.content?.dropPinDraggable,
+      ],
+      () => renderDroppedPin(true)
+    );
+
+    // Turning the feature off removes any pin already down, so the map doesn't
+    // keep showing a draft the user can no longer place or move.
+    watch(dropPinEnabled, (enabled) => {
+      if (!enabled) clearPin();
     });
 
     // Use a primitive key so this only fires when the coordinates actually
@@ -1329,6 +1465,7 @@ export default {
         moveDebounceTimer = null;
       }
       clearMarkers();
+      removeDropPinMarker();
       if (popupMarker) {
         popupMarker.remove();
         popupMarker = null;
@@ -1349,6 +1486,7 @@ export default {
       mapZoom,
       isMapLoaded,
       selectedPoint,
+      droppedPin,
       isEditing,
       // Exposed as WeWeb component actions (see `actions` in ww-config.js).
       flyTo,
@@ -1359,6 +1497,8 @@ export default {
       onPopupMouseDown,
       // Exposed as a WeWeb component action (see `actions` in ww-config.js).
       closePopup,
+      dropPin,
+      clearPin,
     };
   },
 };

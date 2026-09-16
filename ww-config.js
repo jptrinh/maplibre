@@ -54,6 +54,11 @@ export default {
       },
 
       {
+        label: "Drop pin",
+        isCollapsible: true,
+        properties: ["enableDropPin", "dropPinDraggable"],
+      },
+      {
         label: "Popup",
         isCollapsible: true,
         properties: ["showPopups", "autoFlipPopup", "forcePopupInEditor"],
@@ -89,6 +94,11 @@ export default {
           "pillRadius",
           "pillShadow",
         ],
+      },
+      {
+        label: "Drop pin",
+        isCollapsible: true,
+        properties: ["dropPinColor", "dropPinImage", "dropPinWidth", "dropPinHeight"],
       },
       "popupGap",
     ],
@@ -140,6 +150,21 @@ export default {
     {
       name: "popup:close",
       label: { en: "On popup close" },
+      event: {},
+    },
+    {
+      name: "pin:drop",
+      label: { en: "On pin drop" },
+      event: { lngLat: { lng: 0, lat: 0 } },
+    },
+    {
+      name: "pin:move",
+      label: { en: "On pin move" },
+      event: { lngLat: { lng: 0, lat: 0 } },
+    },
+    {
+      name: "pin:clear",
+      label: { en: "On pin clear" },
       event: {},
     },
   ],
@@ -232,6 +257,31 @@ export default {
     {
       action: "closePopup",
       label: { en: "Close popup" },
+      /* wwEditor:start */
+      args: [],
+      /* wwEditor:end */
+    },
+    {
+      action: "dropPin",
+      label: { en: "Drop pin" },
+      /* wwEditor:start */
+      args: [
+        {
+          name: "latitude",
+          type: "number",
+          label: { en: "Latitude" },
+        },
+        {
+          name: "longitude",
+          type: "number",
+          label: { en: "Longitude" },
+        },
+      ],
+      /* wwEditor:end */
+    },
+    {
+      action: "clearPin",
+      label: { en: "Clear pin" },
       /* wwEditor:start */
       args: [],
       /* wwEditor:end */
@@ -1030,6 +1080,111 @@ export default {
         type: "string",
         tooltip:
           "CSS box-shadow value (e.g. '0px 2px 6px 0px rgba(0,0,0,0.3)'). Leave empty for no shadow.",
+      },
+      /* wwEditor:end */
+    },
+    enableDropPin: {
+      label: { en: "Let users drop a pin" },
+      type: "OnOff",
+      section: "settings",
+      defaultValue: false,
+      bindable: true,
+      /* wwEditor:start */
+      bindingValidation: {
+        type: "boolean",
+        tooltip: "When true, clicking the map places the draft pin.",
+      },
+      propertyHelp: {
+        tooltip:
+          "When on, clicking the map places a single draft pin there and exposes its coordinates as the 'droppedPin' component variable. Clicking again moves it. Clicking an existing marker never drops a pin. The 'map:click' trigger still fires as usual.",
+      },
+      /* wwEditor:end */
+    },
+    dropPinDraggable: {
+      label: { en: "Pin is draggable" },
+      type: "OnOff",
+      section: "settings",
+      defaultValue: true,
+      bindable: true,
+      hidden: (content) => !content?.enableDropPin,
+      /* wwEditor:start */
+      bindingValidation: {
+        type: "boolean",
+        tooltip: "When true, the dropped pin can be dragged to a new position.",
+      },
+      propertyHelp: {
+        tooltip:
+          "Lets the user fine-tune the pin by dragging it. 'droppedPin' updates and the 'pin:move' trigger fires when the drag ends.",
+      },
+      /* wwEditor:end */
+    },
+    dropPinColor: {
+      label: { en: "Drop pin color" },
+      type: "Color",
+      section: "style",
+      defaultValue: "#2E7DF7",
+      bindable: true,
+      hidden: (content) => !content?.enableDropPin || !!content?.dropPinImage,
+      /* wwEditor:start */
+      bindingValidation: {
+        type: "string",
+        tooltip: "Color of the dropped pin.",
+      },
+      propertyHelp: {
+        tooltip:
+          "Color of the built-in pin used for the dropped pin. Defaults to a color distinct from the marker color so the draft pin reads differently from your data points. Ignored when a 'Drop pin image' is set.",
+      },
+      /* wwEditor:end */
+    },
+    dropPinImage: {
+      label: { en: "Drop pin image" },
+      type: "Image",
+      section: "style",
+      defaultValue: "",
+      bindable: true,
+      hidden: (content) => !content?.enableDropPin,
+      /* wwEditor:start */
+      bindingValidation: {
+        type: "string",
+        tooltip: "Image used for the dropped pin instead of the built-in pin.",
+      },
+      propertyHelp: {
+        tooltip:
+          "Custom image for the dropped pin. When set, it replaces the built-in colored pin.",
+      },
+      /* wwEditor:end */
+    },
+    dropPinWidth: {
+      label: { en: "Drop pin width" },
+      type: "Number",
+      section: "style",
+      min: 8,
+      max: 200,
+      step: 1,
+      defaultValue: 32,
+      bindable: true,
+      hidden: (content) => !content?.enableDropPin || !content?.dropPinImage,
+      /* wwEditor:start */
+      bindingValidation: {
+        type: "number",
+        tooltip: "Drop pin image width in pixels.",
+      },
+      /* wwEditor:end */
+    },
+    dropPinHeight: {
+      label: { en: "Drop pin height" },
+      type: "Number",
+      section: "style",
+      min: 8,
+      max: 200,
+      step: 1,
+      defaultValue: 40,
+      bindable: true,
+      hidden: (content) => !content?.enableDropPin || !content?.dropPinImage,
+      /* wwEditor:start */
+      bindingValidation: {
+        type: "number",
+        tooltip: "Drop pin image height in pixels.",
       },
       /* wwEditor:end */
     },
