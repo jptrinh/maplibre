@@ -56,6 +56,7 @@ export default {
     let droppedPinMarker = null; // the click-placed draft pin, if any
     let resizeObserver = null;
     let moveDebounceTimer = null;
+    let removeGrabListeners = null;
     let navControl = null;
     let geoControl = null;
     let attributionControl = null;
@@ -103,6 +104,16 @@ export default {
       wwLib.wwVariable.useComponentVariable({
         uid: props.uid,
         name: "isMoving",
+        type: "boolean",
+        defaultValue: false,
+      });
+    // True while a pointer (mouse button, finger, pen) is held down on the map
+    // canvas, whether or not it has started dragging yet. Released anywhere in
+    // the window, so letting go outside the map still clears it.
+    const { value: isGrabbing, setValue: setIsGrabbing } =
+      wwLib.wwVariable.useComponentVariable({
+        uid: props.uid,
+        name: "isGrabbing",
         type: "boolean",
         defaultValue: false,
       });
@@ -1265,6 +1276,33 @@ export default {
         if (isPopupVisible.value) updatePopupPlacement();
       });
 
+      // isGrabbing: count the pointers held on the canvas (two fingers on a
+      // pinch count once each), so lifting one finger keeps it true.
+      const heldPointers = new Set();
+      const onGrabStart = (ev) => {
+        if (ev.pointerType === "mouse" && ev.button !== 0) return;
+        heldPointers.add(ev.pointerId);
+        if (!isGrabbing.value) setIsGrabbing(true);
+      };
+      const onGrabEnd = (ev) => {
+        if (ev?.pointerId !== undefined) heldPointers.delete(ev.pointerId);
+        else heldPointers.clear();
+        if (heldPointers.size === 0 && isGrabbing.value) setIsGrabbing(false);
+      };
+      const grabCanvas = map.getCanvas();
+      // The editor renders the app in an iframe: listen on the canvas's own window.
+      const grabWindow = grabCanvas?.ownerDocument?.defaultView;
+      grabCanvas?.addEventListener("pointerdown", onGrabStart);
+      grabWindow?.addEventListener("pointerup", onGrabEnd);
+      grabWindow?.addEventListener("pointercancel", onGrabEnd);
+      grabWindow?.addEventListener("blur", onGrabEnd);
+      removeGrabListeners = () => {
+        grabCanvas?.removeEventListener("pointerdown", onGrabStart);
+        grabWindow?.removeEventListener("pointerup", onGrabEnd);
+        grabWindow?.removeEventListener("pointercancel", onGrabEnd);
+        grabWindow?.removeEventListener("blur", onGrabEnd);
+      };
+
       map.on("movestart", () => {
         setIsMoving(true);
       });
@@ -1479,6 +1517,10 @@ export default {
         clearTimeout(moveDebounceTimer);
         moveDebounceTimer = null;
       }
+      if (removeGrabListeners) {
+        removeGrabListeners();
+        removeGrabListeners = null;
+      }
       clearMarkers();
       removeDropPinMarker();
       if (popupMarker) {
@@ -1501,6 +1543,7 @@ export default {
       mapZoom,
       isMapLoaded,
       isMoving,
+      isGrabbing,
       selectedPoint,
       droppedPin,
       isEditing,
