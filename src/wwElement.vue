@@ -338,12 +338,16 @@ export default {
       e.stopImmediatePropagation();
     };
 
+    // Also clears the selection, which exists even when popups are off (a
+    // clicked marker is still selected), so only the event depends on the
+    // popup having been open.
     const closePopup = () => {
-      if (!isPopupVisible.value) return;
+      const wasVisible = isPopupVisible.value;
+      if (!wasVisible && selectedPointId.value === null) return;
       isPopupVisible.value = false;
       selectedPointId.value = null;
       setSelectedPoint(null);
-      emit("trigger-event", { name: "popup:close", event: {} });
+      if (wasVisible) emit("trigger-event", { name: "popup:close", event: {} });
     };
 
     // Component action (see `actions` in ww-config.js). Moves the map to the
@@ -1266,7 +1270,12 @@ export default {
         // they reach here, so this only ever fires for the map itself.
         if (dropPinEnabled.value) dropPin(e.lngLat.lat, e.lngLat.lng);
         // Keep the popup open while it's force-opened in the editor.
-        if (isEditing.value && props.content?.forcePopupInEditor) return;
+        if (
+          isEditing.value &&
+          props.content?.forcePopupInEditor &&
+          (props.content?.showPopups ?? true)
+        )
+          return;
         closePopup();
       });
 
@@ -1458,7 +1467,7 @@ export default {
     // (e.g. bound data updates); close it if the selected point disappears.
     watch(selectedCoords, (coords) => {
       if (popupMarker && coords) popupMarker.setLngLat(coords);
-      if (isPopupVisible.value && !coords) closePopup();
+      if (!coords) closePopup();
     });
 
     // Rebuild markers when the selection changes so per-point selected colors
