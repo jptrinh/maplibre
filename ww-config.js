@@ -72,6 +72,11 @@ export default {
         properties: ["defaultMarkerColor", "defaultMarkerImage", "markerWidth", "markerHeight", "imageScale", "imageScaleOrigin"],
       },
       {
+        label: "Border",
+        isCollapsible: true,
+        properties: ["markerBorder", "markerBorderHover", "markerBorderSelected"],
+      },
+      {
         label: "Icon",
         isCollapsible: true,
         properties: ["markerIcon", "markerIconTrailing", "markerIconSize", "markerIconColor", "markerIconColorHover", "markerIconColorSelected", "iconScale", "iconScaleOrigin", "markerIconGap"],
@@ -603,6 +608,60 @@ export default {
       bindingValidation: {
         type: "number",
         tooltip: "Image marker height in pixels.",
+      },
+      /* wwEditor:end */
+    },
+    markerBorder: {
+      label: { en: "Marker border" },
+      type: "Border",
+      section: "style",
+      defaultValue: "none",
+      bindable: true,
+      hidden: (content) => (content?.markerType ?? "pin") === "pin",
+      /* wwEditor:start */
+      bindingValidation: {
+        cssSupports: "border",
+        type: "string",
+        tooltip: 'A CSS border shorthand: `"2px solid #FFFFFF"` | `"none"`',
+      },
+      propertyHelp: {
+        tooltip: "Border around image, text pill and icon markers. Not available on the Pin type.",
+      },
+      /* wwEditor:end */
+    },
+    markerBorderHover: {
+      label: { en: "Marker border (hover)" },
+      type: "Border",
+      section: "style",
+      defaultValue: "",
+      bindable: true,
+      hidden: (content) => (content?.markerType ?? "pin") === "pin",
+      /* wwEditor:start */
+      bindingValidation: {
+        cssSupports: "border",
+        type: "string",
+        tooltip: 'A CSS border shorthand, e.g. `"2px solid #FFFFFF"`. Empty keeps the base border.',
+      },
+      propertyHelp: {
+        tooltip: "Border while a marker is hovered. Leave empty to keep the base border.",
+      },
+      /* wwEditor:end */
+    },
+    markerBorderSelected: {
+      label: { en: "Marker border (selected)" },
+      type: "Border",
+      section: "style",
+      defaultValue: "",
+      bindable: true,
+      hidden: (content) => (content?.markerType ?? "pin") === "pin",
+      /* wwEditor:start */
+      bindingValidation: {
+        cssSupports: "border",
+        type: "string",
+        tooltip: 'A CSS border shorthand, e.g. `"2px solid #2563EB"`. Empty keeps the base border.',
+      },
+      propertyHelp: {
+        tooltip: "Border when the point is selected. Takes priority over hover. Leave empty to keep the base border.",
       },
       /* wwEditor:end */
     },

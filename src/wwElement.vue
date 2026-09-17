@@ -644,13 +644,40 @@ export default {
       if (!Number.isFinite(scale) || scale <= 1) return;
       const isSelected = () => point.id === selectedPointId.value;
       el.style.transformOrigin = transformOrigin;
-      el.style.transition = "transform 0.15s ease";
+      // Append rather than overwrite: a marker border may already transition.
+      el.style.transition = [el.style.transition, "transform 0.15s ease"]
+        .filter(Boolean)
+        .join(", ");
       el.style.transform = `scale(${isSelected() ? scale : 1})`;
       el.addEventListener("mouseenter", () => {
         el.style.transform = `scale(${scale})`;
       });
       el.addEventListener("mouseleave", () => {
         el.style.transform = isSelected() ? `scale(${scale})` : "scale(1)";
+      });
+    };
+
+    // Apply the marker border (every type but the built-in pin) and wire its
+    // hover swap. The selected border is baked in at build time (markers are
+    // rebuilt on selection change); hover leaves a selected border alone, like
+    // the pill hover colors. Empty hover/selected values keep the base border.
+    const wireMarkerBorder = (el, point) => {
+      const baseBorder = props.content?.markerBorder || "none";
+      const selectedBorder = props.content?.markerBorderSelected;
+      const hoverBorder = props.content?.markerBorderHover;
+      const isSelected = () => point.id === selectedPointId.value;
+      const restingBorder = () =>
+        (isSelected() && selectedBorder) || baseBorder;
+
+      el.style.boxSizing = "border-box";
+      el.style.border = restingBorder();
+      if (!hoverBorder) return;
+      el.addEventListener("mouseenter", () => {
+        if (isSelected() && selectedBorder) return;
+        el.style.border = hoverBorder;
+      });
+      el.addEventListener("mouseleave", () => {
+        el.style.border = restingBorder();
       });
     };
 
@@ -679,6 +706,8 @@ export default {
       el.style.height = `${Number(props.content?.markerHeight ?? 40)}px`;
       el.style.objectFit = "contain";
       el.style.display = "block";
+      el.style.transition = "border-color 0.15s ease";
+      wireMarkerBorder(el, point);
       return withMarkerScale(
         el,
         point,
@@ -710,6 +739,7 @@ export default {
       el.style.borderRadius = props.content?.pillRadius || "999px";
       el.style.boxShadow =
         props.content?.pillShadow ?? "0 1px 4px rgba(0, 0, 0, 0.25)";
+      wireMarkerBorder(el, point);
 
       // Resting scale: a selected pill sits enlarged; everything animates via
       // the transition below. The scale origin (default "Match anchor", i.e.
@@ -721,7 +751,7 @@ export default {
       const restingScale = isSelected && scale > 1 ? scale : 1;
       el.style.transformOrigin = resolveScaleOrigin(props.content?.pillScaleOrigin);
       el.style.transition =
-        "background-color 0.15s ease, color 0.15s ease, transform 0.15s ease";
+        "background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.15s ease";
       el.style.transform = `scale(${restingScale})`;
 
       return { baseBg: effectiveBg, baseText: effectiveText };
@@ -829,6 +859,8 @@ export default {
       el.style.alignItems = "center";
       el.style.justifyContent = "center";
       el.style.boxShadow = "0 1px 4px rgba(0, 0, 0, 0.25)";
+      el.style.transition = "border-color 0.15s ease";
+      wireMarkerBorder(el, point);
 
       let iconSvgEl = cloneIconForPoint(point);
       if (iconSvgEl) {
@@ -1455,6 +1487,9 @@ export default {
         props.content?.iconScale,
         props.content?.iconScaleOrigin,
         props.content?.markerIconGap,
+        props.content?.markerBorder,
+        props.content?.markerBorderHover,
+        props.content?.markerBorderSelected,
         resolvedIconSvg.value,
         resolvedIconSvgTrailing.value,
       ],
@@ -1474,10 +1509,12 @@ export default {
     // are applied to the newly selected point and cleared elsewhere.
     watch(selectedPointId, () => {
       const type = props.content?.markerType ?? "pin";
-      // Image markers only need a rebuild when a scale is active, to apply the
-      // enlarged resting size a selected marker keeps.
+      // Image markers only need a rebuild when a scale or selected border is
+      // active, to apply the resting look a selected marker keeps.
       const imageNeedsRebuild =
-        type === "image" && Number(props.content?.imageScale ?? 1) > 1;
+        type === "image" &&
+        (Number(props.content?.imageScale ?? 1) > 1 ||
+          !!props.content?.markerBorderSelected);
       if (
         ["icon", "icon-text-pill", "text-pill"].includes(type) ||
         imageNeedsRebuild
