@@ -41,7 +41,7 @@ points as colored pin markers with clickable popups..
   Clicking an existing marker never drops a pin. Style it with its own color, or replace it
   with an image (width/height controls).
 - **Optional controls** — navigation, geolocate, scroll-to-zoom, attribution (all toggleable).
-- **Internal variables** — `mapCenter`, `mapZoom`, `isMapLoaded`, `selectedPoint`,
+- **Internal variables** — `mapCenter`, `mapZoom`, `isMapLoaded`, `isMoving`, `selectedPoint`,
   `droppedPin`.
 - **Trigger events** — `map:load`, `map:click`, `map:move`, `marker:click`,
   `marker:mouseenter`, `marker:mouseleave`, `popup:open`, `popup:close`, `pin:drop`,

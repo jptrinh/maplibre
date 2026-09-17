@@ -97,6 +97,15 @@ export default {
         type: "boolean",
         defaultValue: false,
       });
+    // True from movestart to moveend: user pan/zoom (inertia included) and
+    // programmatic moves (Fly to, initial position change) alike.
+    const { value: isMoving, setValue: setIsMoving } =
+      wwLib.wwVariable.useComponentVariable({
+        uid: props.uid,
+        name: "isMoving",
+        type: "boolean",
+        defaultValue: false,
+      });
     const { value: selectedPoint, setValue: setSelectedPoint } =
       wwLib.wwVariable.useComponentVariable({
         uid: props.uid,
@@ -1256,7 +1265,13 @@ export default {
         if (isPopupVisible.value) updatePopupPlacement();
       });
 
+      map.on("movestart", () => {
+        setIsMoving(true);
+      });
+
       map.on("moveend", () => {
+        // Not debounced: isMoving reflects the map itself, unlike map:move.
+        setIsMoving(false);
         const payload = viewportPayload();
         setMapCenter(payload.center);
         setMapZoom(payload.zoom);
@@ -1485,6 +1500,7 @@ export default {
       mapCenter,
       mapZoom,
       isMapLoaded,
+      isMoving,
       selectedPoint,
       droppedPin,
       isEditing,
