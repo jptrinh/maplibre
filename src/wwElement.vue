@@ -706,6 +706,7 @@ export default {
       el.style.height = `${Number(props.content?.markerHeight ?? 40)}px`;
       el.style.objectFit = "contain";
       el.style.display = "block";
+      el.style.borderRadius = props.content?.markerImageRadius || "0px";
       el.style.transition = "border-color 0.15s ease";
       wireMarkerBorder(el, point);
       return withMarkerScale(
@@ -1462,6 +1463,7 @@ export default {
         props.content?.defaultMarkerImage,
         props.content?.markerWidth,
         props.content?.markerHeight,
+        props.content?.markerImageRadius,
         props.content?.imageScale,
         props.content?.imageScaleOrigin,
         props.content?.markerImageAnchor,

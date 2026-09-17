@@ -69,7 +69,7 @@ export default {
       "markerImageAnchor",
       {
         label: "Marker defaults",
-        properties: ["defaultMarkerColor", "defaultMarkerImage", "markerWidth", "markerHeight", "imageScale", "imageScaleOrigin"],
+        properties: ["defaultMarkerColor", "defaultMarkerImage", "markerWidth", "markerHeight", "markerImageRadius", "imageScale", "imageScaleOrigin"],
       },
       {
         label: "Border",
@@ -662,6 +662,32 @@ export default {
       },
       propertyHelp: {
         tooltip: "Border when the point is selected. Takes priority over hover. Leave empty to keep the base border.",
+      },
+      /* wwEditor:end */
+    },
+    markerImageRadius: {
+      label: { en: "Image radius" },
+      type: "Length",
+      section: "style",
+      options: {
+        unitChoices: [
+          { value: "px", label: "px", min: 0, max: 999 },
+          { value: "%", label: "%", min: 0, max: 100 },
+        ],
+        noRange: true,
+        useVar: true,
+      },
+      defaultValue: "0px",
+      bindable: true,
+      hidden: (content) => (content?.markerType ?? "pin") !== "image",
+      /* wwEditor:start */
+      bindingValidation: {
+        type: "string",
+        tooltip: "CSS border-radius for image markers (e.g. '8px', or '50%' for a circle).",
+      },
+      propertyHelp: {
+        tooltip:
+          "Rounds the corners of image markers, and of their border. Use 50% with equal width and height for a circle.",
       },
       /* wwEditor:end */
     },
