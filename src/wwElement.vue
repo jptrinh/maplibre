@@ -671,6 +671,59 @@ export default {
       return DEFAULT_MARKER_SHADOW;
     };
 
+    // Apply the marker shadow and wire its state swaps. Priority: active
+    // (pointer held down on the marker) > selected > hover > base. The
+    // selected shadow is baked in at build time (markers are rebuilt on
+    // selection change). Empty state values fall back to the next one down.
+    const wireMarkerShadow = (el, point, type) => {
+      const baseShadow = markerShadowFor(type);
+      const hoverShadow = props.content?.markerShadowHover;
+      const selectedShadow = props.content?.markerShadowSelected;
+      const activeShadow = props.content?.markerShadowActive;
+      let hovered = false;
+      let pressed = false;
+
+      const currentShadow = () => {
+        if (pressed && activeShadow) return activeShadow;
+        if (point.id === selectedPointId.value && selectedShadow)
+          return selectedShadow;
+        if (hovered && hoverShadow) return hoverShadow;
+        return baseShadow;
+      };
+      const apply = () => {
+        el.style.boxShadow = currentShadow();
+      };
+
+      apply();
+      if (hoverShadow) {
+        el.addEventListener("mouseenter", () => {
+          hovered = true;
+          apply();
+        });
+        el.addEventListener("mouseleave", () => {
+          hovered = false;
+          apply();
+        });
+      }
+      if (activeShadow) {
+        // Release is listened for on the document: the pointer may be let go
+        // outside the marker, or the marker rebuilt (selection) mid-press.
+        const doc = wwLib.getFrontDocument();
+        const release = () => {
+          pressed = false;
+          apply();
+          doc.removeEventListener("pointerup", release);
+          doc.removeEventListener("pointercancel", release);
+        };
+        el.addEventListener("pointerdown", () => {
+          pressed = true;
+          apply();
+          doc.addEventListener("pointerup", release);
+          doc.addEventListener("pointercancel", release);
+        });
+      }
+    };
+
     // Apply the marker border (every type but the built-in pin) and wire its
     // hover swap. The selected border is baked in at build time (markers are
     // rebuilt on selection change); hover leaves a selected border alone, like
@@ -721,8 +774,8 @@ export default {
       el.style.objectFit = "contain";
       el.style.display = "block";
       el.style.borderRadius = props.content?.markerImageRadius || "0px";
-      el.style.boxShadow = markerShadowFor("image");
-      el.style.transition = "border-color 0.15s ease";
+      el.style.transition = "border-color 0.15s ease, box-shadow 0.15s ease";
+      wireMarkerShadow(el, point, "image");
       wireMarkerBorder(el, point);
       return withMarkerScale(
         el,
@@ -753,7 +806,7 @@ export default {
       el.style.background = effectiveBg;
       el.style.padding = props.content?.pillPadding || "6px 12px";
       el.style.borderRadius = props.content?.pillRadius || "999px";
-      el.style.boxShadow = markerShadowFor("pill");
+      wireMarkerShadow(el, point, "pill");
       wireMarkerBorder(el, point);
 
       // Resting scale: a selected pill sits enlarged; everything animates via
@@ -766,7 +819,7 @@ export default {
       const restingScale = isSelected && scale > 1 ? scale : 1;
       el.style.transformOrigin = resolveScaleOrigin(props.content?.pillScaleOrigin);
       el.style.transition =
-        "background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.15s ease";
+        "background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease";
       el.style.transform = `scale(${restingScale})`;
 
       return { baseBg: effectiveBg, baseText: effectiveText };
@@ -873,8 +926,8 @@ export default {
       el.style.display = "flex";
       el.style.alignItems = "center";
       el.style.justifyContent = "center";
-      el.style.boxShadow = markerShadowFor("icon");
-      el.style.transition = "border-color 0.15s ease";
+      el.style.transition = "border-color 0.15s ease, box-shadow 0.15s ease";
+      wireMarkerShadow(el, point, "icon");
       wireMarkerBorder(el, point);
 
       let iconSvgEl = cloneIconForPoint(point);
@@ -1495,6 +1548,9 @@ export default {
         props.content?.pillRadius,
         props.content?.pillShadow,
         props.content?.markerShadow,
+        props.content?.markerShadowHover,
+        props.content?.markerShadowSelected,
+        props.content?.markerShadowActive,
         props.content?.markerIcon,
         props.content?.markerIconTrailing,
         props.content?.markerIconSize,
@@ -1531,7 +1587,8 @@ export default {
       const imageNeedsRebuild =
         type === "image" &&
         (Number(props.content?.imageScale ?? 1) > 1 ||
-          !!props.content?.markerBorderSelected);
+          !!props.content?.markerBorderSelected ||
+          !!props.content?.markerShadowSelected);
       if (
         ["icon", "icon-text-pill", "text-pill"].includes(type) ||
         imageNeedsRebuild

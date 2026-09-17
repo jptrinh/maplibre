@@ -74,7 +74,7 @@ export default {
       {
         label: "Border & shadow",
         isCollapsible: true,
-        properties: ["markerBorder", "markerBorderHover", "markerBorderSelected", "markerShadow"],
+        properties: ["markerBorder", "markerBorderHover", "markerBorderSelected", "markerShadow", "markerShadowHover", "markerShadowSelected", "markerShadowActive"],
       },
       {
         label: "Icon",
@@ -1165,6 +1165,66 @@ export default {
       propertyHelp: {
         tooltip:
           "Shadow under image, text pill and icon markers. Not available on the Pin type. On image markers it follows the image box (and its radius), not the image's transparent shape.",
+      },
+      /* wwEditor:end */
+    },
+    markerShadowHover: {
+      label: { en: "Marker shadow (hover)" },
+      type: "Shadows",
+      section: "style",
+      defaultValue: "",
+      bindable: true,
+      responsive: true,
+      hidden: (content) => (content?.markerType ?? "pin") === "pin",
+      /* wwEditor:start */
+      bindingValidation: {
+        type: "string",
+        tooltip:
+          "CSS box-shadow value (e.g. '0px 4px 12px 0px rgba(0,0,0,0.35)'). Empty keeps the lower-priority shadow.",
+      },
+      propertyHelp: {
+        tooltip:
+          "Shadow while a marker is hovered. Leave empty to keep the base shadow.",
+      },
+      /* wwEditor:end */
+    },
+    markerShadowSelected: {
+      label: { en: "Marker shadow (selected)" },
+      type: "Shadows",
+      section: "style",
+      defaultValue: "",
+      bindable: true,
+      responsive: true,
+      hidden: (content) => (content?.markerType ?? "pin") === "pin",
+      /* wwEditor:start */
+      bindingValidation: {
+        type: "string",
+        tooltip:
+          "CSS box-shadow value (e.g. '0px 4px 12px 0px rgba(0,0,0,0.35)'). Empty keeps the lower-priority shadow.",
+      },
+      propertyHelp: {
+        tooltip:
+          "Shadow when the point is selected. Takes priority over hover. Leave empty to keep the hover/base shadow.",
+      },
+      /* wwEditor:end */
+    },
+    markerShadowActive: {
+      label: { en: "Marker shadow (active)" },
+      type: "Shadows",
+      section: "style",
+      defaultValue: "",
+      bindable: true,
+      responsive: true,
+      hidden: (content) => (content?.markerType ?? "pin") === "pin",
+      /* wwEditor:start */
+      bindingValidation: {
+        type: "string",
+        tooltip:
+          "CSS box-shadow value (e.g. '0px 4px 12px 0px rgba(0,0,0,0.35)'). Empty keeps the lower-priority shadow.",
+      },
+      propertyHelp: {
+        tooltip:
+          "Shadow while the pointer is held down on a marker (mouse press or touch). Takes priority over selected and hover. Leave empty to keep the other shadows.",
       },
       /* wwEditor:end */
     },
