@@ -657,6 +657,20 @@ export default {
       });
     };
 
+    // Marker shadow for every type but the built-in pin. When Marker shadow
+    // was never set (instances created before it existed), each type keeps
+    // its previous look: pills use the legacy Pill shadow, icons the fixed
+    // soft shadow, images none. An empty value means no shadow.
+    const DEFAULT_MARKER_SHADOW = "0 1px 4px rgba(0, 0, 0, 0.25)";
+    const markerShadowFor = (type) => {
+      const shadow = props.content?.markerShadow;
+      if (shadow !== undefined && shadow !== null) return shadow;
+      if (type === "image") return "none";
+      if (type === "pill")
+        return props.content?.pillShadow ?? DEFAULT_MARKER_SHADOW;
+      return DEFAULT_MARKER_SHADOW;
+    };
+
     // Apply the marker border (every type but the built-in pin) and wire its
     // hover swap. The selected border is baked in at build time (markers are
     // rebuilt on selection change); hover leaves a selected border alone, like
@@ -707,6 +721,7 @@ export default {
       el.style.objectFit = "contain";
       el.style.display = "block";
       el.style.borderRadius = props.content?.markerImageRadius || "0px";
+      el.style.boxShadow = markerShadowFor("image");
       el.style.transition = "border-color 0.15s ease";
       wireMarkerBorder(el, point);
       return withMarkerScale(
@@ -738,8 +753,7 @@ export default {
       el.style.background = effectiveBg;
       el.style.padding = props.content?.pillPadding || "6px 12px";
       el.style.borderRadius = props.content?.pillRadius || "999px";
-      el.style.boxShadow =
-        props.content?.pillShadow ?? "0 1px 4px rgba(0, 0, 0, 0.25)";
+      el.style.boxShadow = markerShadowFor("pill");
       wireMarkerBorder(el, point);
 
       // Resting scale: a selected pill sits enlarged; everything animates via
@@ -859,7 +873,7 @@ export default {
       el.style.display = "flex";
       el.style.alignItems = "center";
       el.style.justifyContent = "center";
-      el.style.boxShadow = "0 1px 4px rgba(0, 0, 0, 0.25)";
+      el.style.boxShadow = markerShadowFor("icon");
       el.style.transition = "border-color 0.15s ease";
       wireMarkerBorder(el, point);
 
@@ -1480,6 +1494,7 @@ export default {
         props.content?.pillPadding,
         props.content?.pillRadius,
         props.content?.pillShadow,
+        props.content?.markerShadow,
         props.content?.markerIcon,
         props.content?.markerIconTrailing,
         props.content?.markerIconSize,

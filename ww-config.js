@@ -72,9 +72,9 @@ export default {
         properties: ["defaultMarkerColor", "defaultMarkerImage", "markerWidth", "markerHeight", "markerImageRadius", "imageScale", "imageScaleOrigin"],
       },
       {
-        label: "Border",
+        label: "Border & shadow",
         isCollapsible: true,
-        properties: ["markerBorder", "markerBorderHover", "markerBorderSelected"],
+        properties: ["markerBorder", "markerBorderHover", "markerBorderSelected", "markerShadow"],
       },
       {
         label: "Icon",
@@ -97,7 +97,6 @@ export default {
           "pillScaleOrigin",
           "pillPadding",
           "pillRadius",
-          "pillShadow",
         ],
       },
       {
@@ -1149,6 +1148,28 @@ export default {
       },
       /* wwEditor:end */
     },
+    markerShadow: {
+      label: { en: "Marker shadow" },
+      type: "Shadows",
+      section: "style",
+      defaultValue: "0px 1px 4px 0px rgba(0, 0, 0, 0.25)",
+      bindable: true,
+      responsive: true,
+      hidden: (content) => (content?.markerType ?? "pin") === "pin",
+      /* wwEditor:start */
+      bindingValidation: {
+        type: "string",
+        tooltip:
+          "CSS box-shadow value (e.g. '0px 2px 6px 0px rgba(0,0,0,0.3)'). Leave empty for no shadow.",
+      },
+      propertyHelp: {
+        tooltip:
+          "Shadow under image, text pill and icon markers. Not available on the Pin type. On image markers it follows the image box (and its radius), not the image's transparent shape.",
+      },
+      /* wwEditor:end */
+    },
+    // Legacy: replaced by markerShadow. Kept hidden so pills on existing
+    // instances keep their shadow until Marker shadow is set.
     pillShadow: {
       label: { en: "Pill shadow" },
       type: "Shadows",
@@ -1158,8 +1179,7 @@ export default {
       responsive: true,
       states: true,
       classes: true,
-      hidden: (content) =>
-        !["text-pill", "icon-text-pill"].includes(content?.markerType ?? "pin"),
+      hidden: true,
       /* wwEditor:start */
       bindingValidation: {
         type: "string",
