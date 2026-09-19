@@ -1452,6 +1452,13 @@ export default {
     };
 
     // ----- Watchers -----
+    // A getter that returns a new array counts as a change every time it
+    // re-runs, and WeWeb can re-pass `content` with identical values (the same
+    // reason initial position below is keyed on a string). Watch a string of
+    // the values instead, so the callback only fires on a real change. Every
+    // value watched this way is a string, number, boolean or null.
+    const settingsKey = (values) => JSON.stringify(values);
+
     // DOM markers persist across setStyle (they live in the map container, not
     // the style), so we only swap the style.
     watch(styleUrl, (newUrl) => {
@@ -1460,15 +1467,17 @@ export default {
     });
 
     // The dropped pin's look is baked in when MapLibre constructs the marker,
-    // so any appearance change has to rebuild it.
+    // so any appearance change has to rebuild it. Keyed on a string (see
+    // settingsKey) so it only fires when a value actually changes.
     watch(
-      () => [
-        props.content?.dropPinColor,
-        props.content?.dropPinImage,
-        props.content?.dropPinWidth,
-        props.content?.dropPinHeight,
-        props.content?.dropPinDraggable,
-      ],
+      () =>
+        settingsKey([
+          props.content?.dropPinColor,
+          props.content?.dropPinImage,
+          props.content?.dropPinWidth,
+          props.content?.dropPinHeight,
+          props.content?.dropPinDraggable,
+        ]),
       () => renderDroppedPin(true)
     );
 
@@ -1511,61 +1520,64 @@ export default {
     );
 
     watch(
-      () => [
-        props.content?.showNavigation,
-        props.content?.showGeolocate,
-        props.content?.scrollZoom,
-        props.content?.showAttribution,
-      ],
+      () =>
+        settingsKey([
+          props.content?.showNavigation,
+          props.content?.showGeolocate,
+          props.content?.scrollZoom,
+          props.content?.showAttribution,
+        ]),
       () => {
         syncControls();
       }
     );
 
-    // Marker appearance changes re-render the markers.
+    // Marker appearance changes re-render the markers. A full rebuild replaces
+    // every marker element, so it must not run on a mere content re-pass.
     watch(
-      () => [
-        props.content?.markerType,
-        props.content?.defaultMarkerColor,
-        props.content?.defaultMarkerImage,
-        props.content?.markerWidth,
-        props.content?.markerHeight,
-        props.content?.markerImageRadius,
-        props.content?.imageScale,
-        props.content?.imageScaleOrigin,
-        props.content?.markerImageAnchor,
-        props.content?.pillTextColor,
-        props.content?.pillTextColorHover,
-        props.content?.pillTextSize,
-        props.content?.pillTextWeight,
-        props.content?.pillBgColor,
-        props.content?.pillBgColorHover,
-        props.content?.pillBgColorSelected,
-        props.content?.pillTextColorSelected,
-        props.content?.pillScale,
-        props.content?.pillScaleOrigin,
-        props.content?.pillPadding,
-        props.content?.pillRadius,
-        props.content?.pillShadow,
-        props.content?.markerShadow,
-        props.content?.markerShadowHover,
-        props.content?.markerShadowSelected,
-        props.content?.markerShadowActive,
-        props.content?.markerIcon,
-        props.content?.markerIconTrailing,
-        props.content?.markerIconSize,
-        props.content?.markerIconColor,
-        props.content?.markerIconColorHover,
-        props.content?.markerIconColorSelected,
-        props.content?.iconScale,
-        props.content?.iconScaleOrigin,
-        props.content?.markerIconGap,
-        props.content?.markerBorder,
-        props.content?.markerBorderHover,
-        props.content?.markerBorderSelected,
-        resolvedIconSvg.value,
-        resolvedIconSvgTrailing.value,
-      ],
+      () =>
+        settingsKey([
+          props.content?.markerType,
+          props.content?.defaultMarkerColor,
+          props.content?.defaultMarkerImage,
+          props.content?.markerWidth,
+          props.content?.markerHeight,
+          props.content?.markerImageRadius,
+          props.content?.imageScale,
+          props.content?.imageScaleOrigin,
+          props.content?.markerImageAnchor,
+          props.content?.pillTextColor,
+          props.content?.pillTextColorHover,
+          props.content?.pillTextSize,
+          props.content?.pillTextWeight,
+          props.content?.pillBgColor,
+          props.content?.pillBgColorHover,
+          props.content?.pillBgColorSelected,
+          props.content?.pillTextColorSelected,
+          props.content?.pillScale,
+          props.content?.pillScaleOrigin,
+          props.content?.pillPadding,
+          props.content?.pillRadius,
+          props.content?.pillShadow,
+          props.content?.markerShadow,
+          props.content?.markerShadowHover,
+          props.content?.markerShadowSelected,
+          props.content?.markerShadowActive,
+          props.content?.markerIcon,
+          props.content?.markerIconTrailing,
+          props.content?.markerIconSize,
+          props.content?.markerIconColor,
+          props.content?.markerIconColorHover,
+          props.content?.markerIconColorSelected,
+          props.content?.iconScale,
+          props.content?.iconScaleOrigin,
+          props.content?.markerIconGap,
+          props.content?.markerBorder,
+          props.content?.markerBorderHover,
+          props.content?.markerBorderSelected,
+          resolvedIconSvg.value,
+          resolvedIconSvgTrailing.value,
+        ]),
       () => {
         renderMarkers(true);
       }
