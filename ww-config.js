@@ -171,6 +171,11 @@ export default {
       label: { en: "On pin clear" },
       event: {},
     },
+    {
+      name: "geolocate:error",
+      label: { en: "On geolocate error" },
+      event: { code: 1, reason: "permission_denied", message: "" },
+    },
   ],
   actions: [
     {

@@ -128,6 +128,17 @@ export default {
         defaultValue: null,
       });
 
+    // Last position found by the geolocate control (button or `geolocate`
+    // action): { latitude, longitude, accuracy } with accuracy in metres, or
+    // null until one is found. Updates while tracking; kept when it stops.
+    const { value: userLocation, setValue: setUserLocation } =
+      wwLib.wwVariable.useComponentVariable({
+        uid: props.uid,
+        name: "userLocation",
+        type: "object",
+        defaultValue: null,
+      });
+
     const { value: droppedPin, setValue: setDroppedPin } =
       wwLib.wwVariable.useComponentVariable({
         uid: props.uid,
@@ -385,6 +396,12 @@ export default {
     // native control (hide it with "Show geolocate button").
     const geolocate = () => {
       if (!map || !geoControl) return;
+      // Without the Geolocation API (insecure origin, old browser) MapLibre
+      // throws instead of reporting an error, so report it ourselves.
+      if (!window.navigator.geolocation) {
+        emitGeolocateError({ code: 0, message: "Geolocation is not supported" });
+        return;
+      }
       geoControl.trigger();
     };
 
@@ -1216,6 +1233,25 @@ export default {
       emit("trigger-event", { name: "pin:clear", event: {} });
     };
 
+    // Codes follow GeolocationPositionError; 0 is ours for "not supported".
+    const GEOLOCATE_ERROR_REASONS = {
+      0: "unsupported",
+      1: "permission_denied",
+      2: "position_unavailable",
+      3: "timeout",
+    };
+    const emitGeolocateError = (error) => {
+      const code = error?.code ?? 2;
+      emit("trigger-event", {
+        name: "geolocate:error",
+        event: {
+          code,
+          reason: GEOLOCATE_ERROR_REASONS[code] ?? "position_unavailable",
+          message: error?.message ?? "",
+        },
+      });
+    };
+
     const syncControls = () => {
       if (!map) return;
 
@@ -1238,6 +1274,11 @@ export default {
           positionOptions: { enableHighAccuracy: true },
           trackUserLocation: true,
         });
+        geoControl.on("geolocate", (position) => {
+          const { latitude, longitude, accuracy } = position.coords;
+          setUserLocation({ latitude, longitude, accuracy });
+        });
+        geoControl.on("error", emitGeolocateError);
         map.addControl(geoControl, "top-right");
       }
       const geoGroup = map
@@ -1721,6 +1762,7 @@ export default {
       isGrabbing,
       selectedPoint,
       droppedPin,
+      userLocation,
       isEditing,
       // Exposed as WeWeb component actions (see `actions` in ww-config.js).
       flyTo,

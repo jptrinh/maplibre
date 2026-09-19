@@ -42,10 +42,12 @@ points as colored pin markers with clickable popups..
   with an image (width/height controls).
 - **Optional controls** — navigation, geolocate, scroll-to-zoom, attribution (all toggleable).
 - **Internal variables** — `mapCenter`, `mapZoom`, `isMapLoaded`, `isMoving`, `isGrabbing`, `selectedPoint`,
-  `droppedPin`.
+  `droppedPin`, `userLocation` (`{ latitude, longitude, accuracy }` — last position found by
+  geolocate, accuracy in metres; `null` until one is found).
 - **Trigger events** — `map:load`, `map:click`, `map:move`, `marker:click`,
   `marker:mouseenter`, `marker:mouseleave`, `popup:open`, `popup:close`, `pin:drop`,
-  `pin:move`, `pin:clear`. `map:load` and
+  `pin:move`, `pin:clear`, `geolocate:error` (`{ code, reason, message }` — reason is
+  `permission_denied`, `position_unavailable`, `timeout` or `unsupported`). `map:load` and
   `map:move` both carry `center`, `zoom`, and `bounds` (`north`/`south`/`east`/`west` of
   the visible area) — use the bounds to fetch only what's on screen, from the initial
   load onwards. `map:move` only fires when the visible area changed since the previous
