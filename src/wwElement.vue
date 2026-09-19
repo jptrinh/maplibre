@@ -56,6 +56,9 @@ export default {
     let droppedPinMarker = null; // the click-placed draft pin, if any
     let resizeObserver = null;
     let moveDebounceTimer = null;
+    // Viewport of the last map:move sent, to skip moveend events that did not
+    // change it (see emitMoveIfChanged).
+    let lastMoveKey = null;
     let removeGrabListeners = null;
     let navControl = null;
     let geoControl = null;
@@ -1280,6 +1283,32 @@ export default {
       };
     };
 
+    // MapLibre's resize() always fires movestart/move/moveend, even when the
+    // size did not change, and the map is resized twice on startup (load
+    // handler + the ResizeObserver's initial callback). Without this, every
+    // load sent map:move twice for the same area, and a workflow fetching by
+    // bounds ran twice. Only send map:move when the visible area changed since
+    // the last one; the first moveend after load still goes out.
+    const viewportKey = (v) =>
+      [
+        v.center.lng,
+        v.center.lat,
+        v.zoom,
+        v.bounds.north,
+        v.bounds.south,
+        v.bounds.east,
+        v.bounds.west,
+      ]
+        .map((n) => Number(n).toFixed(9))
+        .join(",");
+
+    const emitMoveIfChanged = (payload) => {
+      const key = viewportKey(payload);
+      if (key === lastMoveKey) return;
+      lastMoveKey = key;
+      emit("trigger-event", { name: "map:move", event: payload });
+    };
+
     let initAttempts = 0;
     let isUnmounted = false;
     const initMap = () => {
@@ -1434,10 +1463,10 @@ export default {
         if (delay > 0) {
           moveDebounceTimer = setTimeout(() => {
             moveDebounceTimer = null;
-            emit("trigger-event", { name: "map:move", event: payload });
+            emitMoveIfChanged(payload);
           }, delay);
         } else {
-          emit("trigger-event", { name: "map:move", event: payload });
+          emitMoveIfChanged(payload);
         }
       });
 

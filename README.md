@@ -48,7 +48,8 @@ points as colored pin markers with clickable popups..
   `pin:move`, `pin:clear`. `map:load` and
   `map:move` both carry `center`, `zoom`, and `bounds` (`north`/`south`/`east`/`west` of
   the visible area) — use the bounds to fetch only what's on screen, from the initial
-  load onwards. Set "Move debounce (ms)" to
+  load onwards. `map:move` only fires when the visible area changed since the previous
+  `map:move` (a resize that leaves it identical does not re-fire it). Set "Move debounce (ms)" to
   wait until panning/zooming settles before it fires, so you don't hammer your API.
 - **Component actions** — `Fly to` (animate the map to a lat/lng/zoom), `Reset north`
   (swing the map back to north-up; optionally reset tilt too), `Select point`,
