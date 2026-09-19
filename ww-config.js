@@ -220,6 +220,13 @@ export default {
       /* wwEditor:end */
     },
     {
+      action: "geolocate",
+      label: { en: "Geolocate" },
+      /* wwEditor:start */
+      args: [],
+      /* wwEditor:end */
+    },
+    {
       action: "selectPoint",
       label: { en: "Select point" },
       /* wwEditor:start */
@@ -398,6 +405,12 @@ export default {
       section: "settings",
       defaultValue: false,
       bindable: true,
+      /* wwEditor:start */
+      propertyHelp: {
+        tooltip:
+          "Only hides the button: the 'Geolocate' component action still works, so your own button can trigger it.",
+      },
+      /* wwEditor:end */
     },
     showAttribution: {
       label: { en: "Show attribution" },

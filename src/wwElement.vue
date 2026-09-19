@@ -379,6 +379,15 @@ export default {
       else map.resetNorth(options);
     };
 
+    // Same as pressing MapLibre's geolocate button: the first call asks for the
+    // user's position, shows the location dot and follows it; calling again
+    // while tracking turns it off. Lets a WeWeb-built button replace the
+    // native control (hide it with "Show geolocate button").
+    const geolocate = () => {
+      if (!map || !geoControl) return;
+      geoControl.trigger();
+    };
+
     // Resolve a user-supplied id to a processed point. `p.id` is the canonical
     // `point-${rawId}` built from the mapped ID field (see processedPoints), so
     // callers can pass either that raw id value or the composed marker id. Used
@@ -1220,17 +1229,22 @@ export default {
         navControl = null;
       }
 
-      if (props.content?.showGeolocate) {
-        if (!geoControl) {
-          geoControl = new maplibregl.GeolocateControl({
-            positionOptions: { enableHighAccuracy: true },
-            trackUserLocation: true,
-          });
-          map.addControl(geoControl, "top-right");
-        }
-      } else if (geoControl) {
-        map.removeControl(geoControl);
-        geoControl = null;
+      // The geolocate control always exists so the `geolocate` component action
+      // can trigger it from an outside button; "Show geolocate button" only
+      // hides its button. It's created up front because the control sets
+      // itself up asynchronously and ignores trigger() until then.
+      if (!geoControl) {
+        geoControl = new maplibregl.GeolocateControl({
+          positionOptions: { enableHighAccuracy: true },
+          trackUserLocation: true,
+        });
+        map.addControl(geoControl, "top-right");
+      }
+      const geoGroup = map
+        .getContainer()
+        .querySelector(".maplibregl-ctrl-geolocate")?.parentElement;
+      if (geoGroup) {
+        geoGroup.style.display = props.content?.showGeolocate ? "" : "none";
       }
 
       if (props.content?.scrollZoom ?? true) {
@@ -1711,6 +1725,7 @@ export default {
       // Exposed as WeWeb component actions (see `actions` in ww-config.js).
       flyTo,
       resetNorth,
+      geolocate,
       selectPoint,
       hoverPoint,
       unhoverPoint,

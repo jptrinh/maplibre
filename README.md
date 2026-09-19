@@ -52,7 +52,8 @@ points as colored pin markers with clickable popups..
   `map:move` (a resize that leaves it identical does not re-fire it). Set "Move debounce (ms)" to
   wait until panning/zooming settles before it fires, so you don't hammer your API.
 - **Component actions** — `Fly to` (animate the map to a lat/lng/zoom), `Reset north`
-  (swing the map back to north-up; optionally reset tilt too), `Select point`,
+  (swing the map back to north-up; optionally reset tilt too), `Geolocate` (same as the
+  geolocate button — works even when the button is hidden), `Select point`,
   `Hover point`, `Unhover point`, `Close popup`, `Drop pin` (place the pin at given
   coordinates), `Clear pin` — trigger these from your own WeWeb workflows.
 
